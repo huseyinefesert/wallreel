@@ -15,6 +15,7 @@ object Prefs {
     private const val KEY_INDEX = "current_index"
     private const val KEY_CURRENT_PATH = "current_path"
     private const val KEY_CURRENT_SCALE = "current_scale"
+    private const val KEY_LAST_CHANGE = "last_change_time"
 
     private fun prefs(context: Context) =
         context.applicationContext.getSharedPreferences(FILE, Context.MODE_PRIVATE)
@@ -54,9 +55,19 @@ object Prefs {
         prefs(context).getString(KEY_CURRENT_SCALE, "FILL") ?: "FILL"
 
     fun setCurrent(context: Context, path: String?, scale: String) {
-        prefs(context).edit()
+        val previous = currentPath(context)
+        val editor = prefs(context).edit()
             .putString(KEY_CURRENT_PATH, path)
             .putString(KEY_CURRENT_SCALE, scale)
-            .apply()
+        // Sadece gösterilen FOTOĞRAF gerçekten değiştiğinde zamanı güncelle.
+        // (Yalnızca scale değişiminde sayaç sıfırlanmaz.)
+        if (path != null && path != previous) {
+            editor.putLong(KEY_LAST_CHANGE, System.currentTimeMillis())
+        }
+        editor.apply()
     }
+
+    // Mevcut duvar kağıdının en son ne zaman değiştiği (epoch millis). 0 = hiç.
+    fun lastChangeTime(context: Context): Long =
+        prefs(context).getLong(KEY_LAST_CHANGE, 0L)
 }

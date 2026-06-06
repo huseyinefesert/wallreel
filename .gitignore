@@ -1,11 +1,44 @@
-*.iml
+# ---- Gradle / build outputs ----
 .gradle/
-/local.properties
-/.idea/
-.DS_Store
 /build/
 /app/build/
+/app/release/
 /captures/
+build/
+release/
+*.apk
+*.aab
+*.ap_
+*.dex
+*.class
+
+# ---- Native build ----
 .externalNativeBuild/
 .cxx/
+
+# ---- Android Studio / IntelliJ ----
+*.iml
+/.idea/
+.idea/
+*.hprof
+
+# ---- Local config (machine-specific) ----
+/local.properties
+
+# ---- Signing & secrets (NEVER commit these) ----
+*.jks
+*.keystore
+keystore.properties
+signing.properties
+*.p12
+google-services.json
+
+# ---- OS files ----
+.DS_Store
+Thumbs.db
+
+# ---- Logs ----
+*.log
+
+# ---- Claude / assistant files ----
 /.claude

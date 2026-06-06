@@ -41,6 +41,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -77,11 +78,21 @@ fun AlbumScreen(
 
     // O an duvar kağıdında gösterilen fotoğraf (bu albüme aitse).
     val currentPath by viewModel.currentPath.collectAsState()
+    val lastChangeTime by viewModel.lastChangeTime.collectAsState()
     val currentPhoto = remember(photos, currentPath) {
         currentPath?.let { p -> photos.firstOrNull { it.path == p } }
     }
     val gridState = rememberLazyGridState()
     val scope = rememberCoroutineScope()
+
+    // "X dakika önce" yazısının zamanla ilerlemesi için her 30 sn'de bir "şimdi"yi tazele.
+    var now by remember { mutableStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            now = System.currentTimeMillis()
+            kotlinx.coroutines.delay(30_000)
+        }
+    }
 
     fun scrollToCurrent() {
         val index = photos.indexOfFirst { it.path == currentPath }
@@ -199,6 +210,21 @@ fun AlbumScreen(
                                 )
                             }
                         }
+                        if (lastChangeTime > 0L) {
+                            Spacer(Modifier.height(8.dp))
+                            Box(
+                                Modifier
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(MaterialTheme.colorScheme.primary)
+                                    .padding(horizontal = 10.dp, vertical = 6.dp)
+                            ) {
+                                Text(
+                                    "Changed ${formatElapsed(now - lastChangeTime)}",
+                                    style = MaterialTheme.typography.labelLarge,
+                                    color = MaterialTheme.colorScheme.onPrimary
+                                )
+                            }
+                        }
                         Spacer(Modifier.height(8.dp))
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             Button(
@@ -255,6 +281,26 @@ fun AlbumScreen(
                 photoForScale = null
             }
         )
+    }
+}
+
+/** "5 min ago", "1 h 20 min ago", "2 d 3 h ago" gibi okunaklı geçen süre metni. */
+private fun formatElapsed(millis: Long): String {
+    if (millis < 0) return "just now"
+    val totalMinutes = millis / 60_000L
+    return when {
+        totalMinutes < 1 -> "just now"
+        totalMinutes < 60 -> "$totalMinutes min ago"
+        totalMinutes < 1440 -> {
+            val h = totalMinutes / 60
+            val m = totalMinutes % 60
+            if (m == 0L) "$h h ago" else "$h h $m min ago"
+        }
+        else -> {
+            val d = totalMinutes / 1440
+            val h = (totalMinutes % 1440) / 60
+            if (h == 0L) "$d d ago" else "$d d $h h ago"
+        }
     }
 }
 

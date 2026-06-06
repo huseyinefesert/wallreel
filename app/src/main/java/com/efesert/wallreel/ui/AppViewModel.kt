@@ -42,9 +42,14 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     private val _currentPath = MutableStateFlow(Prefs.currentPath(context))
     val currentPath: StateFlow<String?> = _currentPath.asStateFlow()
 
+    // Mevcut duvar kağıdının en son ne zaman değiştiği (epoch millis).
+    private val _lastChangeTime = MutableStateFlow(Prefs.lastChangeTime(context))
+    val lastChangeTime: StateFlow<Long> = _lastChangeTime.asStateFlow()
+
     private val changeReceiver = object : BroadcastReceiver() {
         override fun onReceive(c: Context?, i: Intent?) {
             _currentPath.value = Prefs.currentPath(context)
+            _lastChangeTime.value = Prefs.lastChangeTime(context)
         }
     }
 
