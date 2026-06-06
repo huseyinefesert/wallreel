@@ -1,7 +1,3 @@
-<p align="center">
-  <img src="app/src/main/res/drawable/ic_launcher_foreground.xml" width="96" alt="Wallreel icon" />
-</p>
-
 <h1 align="center">Wallreel</h1>
 
 <p align="center">
