@@ -24,7 +24,10 @@ object WallpaperScheduler {
         )
     }
 
-    /** Prefs'teki aralığa göre bir sonraki geçişi planlar. */
+    /**
+     * Bir sonraki geçişi planlar. Alarmı SON DEĞİŞİM zamanına göre kurar; böylece
+     * uygulamayı açmak / yeniden başlatmak sayacı sıfırlayıp süreyi uzatmaz.
+     */
     fun schedule(context: Context) {
         val minutes = Prefs.intervalMinutes(context)
         val am = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
@@ -33,7 +36,14 @@ object WallpaperScheduler {
             am.cancel(pi)
             return
         }
-        val triggerAt = SystemClock.elapsedRealtime() + minutes * 60_000L
+        val intervalMs = minutes * 60_000L
+        val last = Prefs.lastChangeTime(context)
+        val remaining = if (last > 0L) {
+            (intervalMs - (System.currentTimeMillis() - last)).coerceIn(0L, intervalMs)
+        } else {
+            intervalMs
+        }
+        val triggerAt = SystemClock.elapsedRealtime() + remaining
         am.setAndAllowWhileIdle(AlarmManager.ELAPSED_REALTIME_WAKEUP, triggerAt, pi)
     }
 

@@ -8,7 +8,7 @@ import com.efesert.wallreel.playlist.PlaylistController
 /** Zamanlayıcı tetiklendiğinde sıradaki resme geçer ve bir sonraki geçişi yeniden planlar. */
 class AlarmReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent?) {
-        PlaylistController.advance(context)
+        PlaylistController.advanceIfDue(context)
         WallpaperScheduler.schedule(context)
     }
 }

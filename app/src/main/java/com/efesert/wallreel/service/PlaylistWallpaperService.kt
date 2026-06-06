@@ -9,6 +9,7 @@ import android.graphics.Color
 import android.graphics.Paint
 import android.os.Handler
 import android.os.HandlerThread
+import android.os.Looper
 import android.service.wallpaper.WallpaperService
 import android.view.GestureDetector
 import android.view.MotionEvent
@@ -16,6 +17,7 @@ import android.view.SurfaceHolder
 import androidx.core.content.ContextCompat
 import com.efesert.wallreel.playlist.PlaylistController
 import com.efesert.wallreel.playlist.Prefs
+import com.efesert.wallreel.scheduler.WallpaperScheduler
 
 /**
  * Canlı duvar kağıdı servisi. Şu an gösterilmesi gereken resmi (Prefs.currentPath) çizer,
@@ -39,6 +41,21 @@ class PlaylistWallpaperService : WallpaperService() {
 
         private val drawThread = HandlerThread("wp-draw").apply { start() }
         private val drawHandler = Handler(drawThread.looper)
+
+        // Ekran açıkken kesin zamanlama için (Doze'a takılmadan) ana iş parçacığı
+        // zamanlayıcısı. Ekran kapanınca durur; AlarmManager o dönemi kapsar.
+        private val timerHandler = Handler(Looper.getMainLooper())
+        private val advanceRunnable: Runnable = Runnable {
+            PlaylistController.advanceIfDue(this@PlaylistWallpaperService)
+            // Arka plan alarmını yeni değişim zamanına göre yeniden kur.
+            WallpaperScheduler.schedule(this@PlaylistWallpaperService)
+            // Boş kuyrukta sıkı döngüyü önlemek için sonrakini tam aralık sonrasına kur.
+            timerHandler.removeCallbacks(this@PlaylistEngine.advanceRunnable)
+            val minutes = Prefs.intervalMinutes(this@PlaylistWallpaperService)
+            if (minutes > 0) {
+                timerHandler.postDelayed(this@PlaylistEngine.advanceRunnable, minutes * 60_000L)
+            }
+        }
 
         // Playlist değiştiğinde (alarm, çift dokunma, UI) yeniden çiz.
         private val changeReceiver = object : BroadcastReceiver() {
@@ -79,7 +96,29 @@ class PlaylistWallpaperService : WallpaperService() {
 
         override fun onVisibilityChanged(v: Boolean) {
             visible = v
-            if (v) requestDraw()
+            if (v) {
+                // Görünür olunca: süre dolduysa kalan süreye (0 ise hemen) bir geçiş kur.
+                scheduleNextTick()
+                requestDraw()
+            } else {
+                // Ekran kapalıyken zamanlayıcıyı durdur; o dönemi AlarmManager kapsar.
+                timerHandler.removeCallbacks(advanceRunnable)
+            }
+        }
+
+        /** Son değişimden bu yana kalan süreye göre bir sonraki geçişi kurar. */
+        private fun scheduleNextTick() {
+            timerHandler.removeCallbacks(advanceRunnable)
+            val minutes = Prefs.intervalMinutes(this@PlaylistWallpaperService)
+            if (minutes <= 0) return
+            val intervalMs = minutes * 60_000L
+            val last = Prefs.lastChangeTime(this@PlaylistWallpaperService)
+            val delay = if (last <= 0L) {
+                intervalMs
+            } else {
+                (intervalMs - (System.currentTimeMillis() - last)).coerceIn(0L, intervalMs)
+            }
+            timerHandler.postDelayed(advanceRunnable, delay)
         }
 
         override fun onTouchEvent(event: MotionEvent) {
@@ -132,6 +171,7 @@ class PlaylistWallpaperService : WallpaperService() {
                 this@PlaylistWallpaperService.unregisterReceiver(changeReceiver)
             } catch (_: Exception) {
             }
+            timerHandler.removeCallbacks(advanceRunnable)
             drawThread.quitSafely()
             super.onDestroy()
         }

@@ -53,6 +53,25 @@ object PlaylistController {
         }
     }
 
+    /**
+     * Sadece zamanlayıcı süresi gerçekten dolduysa bir sonrakine geçer.
+     * Alarm ve duvar kağıdı görünürlük kontrolü bunu çağırır; aynı anda iki
+     * kaynaktan tetiklenirse (çift geçiş) bunu önler. Çift dokunma ise her
+     * zaman doğrudan advance() kullanır.
+     */
+    fun advanceIfDue(context: Context): Boolean {
+        val minutes = Prefs.intervalMinutes(context)
+        if (minutes <= 0) return false
+        val intervalMs = minutes * 60_000L
+        val last = Prefs.lastChangeTime(context)
+        // 2 sn tolerans: alarm birkaç ms erken tetiklenirse yine de "dolmuş" say.
+        if (last > 0L && System.currentTimeMillis() - last < intervalMs - 2_000L) {
+            return false
+        }
+        advance(context)
+        return true
+    }
+
     /** Bir sonraki resme geçer (otomatik zamanlayıcı veya çift dokunma). */
     fun advance(context: Context) {
         val queue = readQueue(context)
