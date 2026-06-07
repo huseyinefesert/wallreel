@@ -57,10 +57,12 @@ class PlaylistWallpaperService : WallpaperService() {
             }
         }
 
-        // Playlist değiştiğinde (alarm, çift dokunma, UI) yeniden çiz.
+        // Playlist değiştiğinde (alarm, çift dokunma, UI) yeniden çiz ve
+        // görünürse zamanlayıcıyı yeni değişim zamanına göre hizala.
         private val changeReceiver = object : BroadcastReceiver() {
             override fun onReceive(context: Context?, intent: Intent?) {
                 requestDraw()
+                if (visible) scheduleNextTick()
             }
         }
 

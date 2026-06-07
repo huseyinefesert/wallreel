@@ -4,6 +4,7 @@ import android.content.Context
 import android.net.Uri
 import com.efesert.wallreel.playlist.PlaylistController
 import com.efesert.wallreel.playlist.Prefs
+import com.efesert.wallreel.scheduler.WallpaperScheduler
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.withContext
@@ -77,6 +78,37 @@ class Repository(private val context: Context) {
         runCatching { File(photo.path).delete() }
         dao.deletePhoto(photo)
         refreshIfActive(photo.albumId)
+    }
+
+    /** Birden fazla fotoğrafı albümden kaldırır (kopyalanan dosyaları da siler). */
+    suspend fun deletePhotos(photos: List<Photo>) = withContext(Dispatchers.IO) {
+        if (photos.isEmpty()) return@withContext
+        photos.forEach { photo ->
+            runCatching { File(photo.path).delete() }
+            dao.deletePhoto(photo)
+        }
+        refreshIfActive(photos.first().albumId)
+    }
+
+    /**
+     * Seçilen fotoğrafı hemen duvar kağıdı yapar (çift dokunma gibi ama foto seçilebilir).
+     * Foto aktif albümde değilse o albümü önce aktif yapar. Timer sıfırlanır.
+     */
+    suspend fun setAsWallpaper(photo: Photo) = withContext(Dispatchers.IO) {
+        val active = dao.getActiveAlbum()
+        if (active == null || active.id != photo.albumId) {
+            dao.clearActiveFlags()
+            dao.setActiveFlag(photo.albumId)
+            refreshQueue()
+        }
+        var ok = PlaylistController.jumpTo(context, photo.path)
+        if (!ok) {
+            // Kuyrukta yoksa (ör. yeni eklenmiş) tazele ve tekrar dene.
+            refreshQueue()
+            ok = PlaylistController.jumpTo(context, photo.path)
+        }
+        // Timer'ı yeni değişim zamanına göre yeniden kur.
+        WallpaperScheduler.schedule(context)
     }
 
     private suspend fun refreshIfActive(albumId: Long) {

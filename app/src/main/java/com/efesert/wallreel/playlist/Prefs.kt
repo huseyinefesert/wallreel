@@ -70,4 +70,8 @@ object Prefs {
     // Mevcut duvar kağıdının en son ne zaman değiştiği (epoch millis). 0 = hiç.
     fun lastChangeTime(context: Context): Long =
         prefs(context).getLong(KEY_LAST_CHANGE, 0L)
+
+    // Değişim zamanını "şimdi" olarak işaretle (timer'ı sıfırlamak için).
+    fun markChangedNow(context: Context) =
+        prefs(context).edit().putLong(KEY_LAST_CHANGE, System.currentTimeMillis()).apply()
 }

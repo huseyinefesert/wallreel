@@ -72,6 +72,23 @@ object PlaylistController {
         return true
     }
 
+    /**
+     * Kuyruktaki belirli bir fotoğrafa (path) atlar ve onu hemen duvar kağıdı yapar.
+     * Timer her durumda sıfırlanır (seçilen foto zaten gösteriliyor olsa bile).
+     * Kuyrukta bulunamazsa false döner.
+     */
+    fun jumpTo(context: Context, path: String): Boolean {
+        val queue = readQueue(context)
+        val index = queue.indexOfFirst { it.path == path }
+        if (index < 0) return false
+        Prefs.setCurrentIndex(context, index)
+        val entry = queue[index]
+        Prefs.setCurrent(context, entry.path, entry.scale)
+        Prefs.markChangedNow(context)
+        broadcast(context)
+        return true
+    }
+
     /** Bir sonraki resme geçer (otomatik zamanlayıcı veya çift dokunma). */
     fun advance(context: Context) {
         val queue = readQueue(context)

@@ -1,10 +1,13 @@
 package com.efesert.wallreel.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -24,6 +27,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AddPhotoAlternate
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Wallpaper
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -44,6 +51,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -75,6 +83,24 @@ fun AlbumScreen(
         .collectAsState(initial = emptyList())
 
     var photoForScale by remember { mutableStateOf<Photo?>(null) }
+
+    // ---- Çoklu seçim modu ----
+    var selectionMode by remember { mutableStateOf(false) }
+    val selectedIds = remember { mutableStateListOf<Long>() }
+    var showRemoveConfirm by remember { mutableStateOf(false) }
+
+    fun exitSelection() {
+        selectionMode = false
+        selectedIds.clear()
+    }
+
+    fun toggleSelection(id: Long) {
+        if (selectedIds.contains(id)) selectedIds.remove(id) else selectedIds.add(id)
+        if (selectedIds.isEmpty()) selectionMode = false
+    }
+
+    // Seçim modundayken sistem geri tuşu önce seçimi kapatsın.
+    BackHandler(enabled = selectionMode) { exitSelection() }
 
     // O an duvar kağıdında gösterilen fotoğraf (bu albüme aitse).
     val currentPath by viewModel.currentPath.collectAsState()
@@ -108,14 +134,32 @@ fun AlbumScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text(album?.name ?: "Album") },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+            if (selectionMode) {
+                TopAppBar(
+                    title = { Text("${selectedIds.size} selected") },
+                    navigationIcon = {
+                        IconButton(onClick = { exitSelection() }) {
+                            Icon(Icons.Filled.Close, contentDescription = "Cancel")
+                        }
+                    },
+                    actions = {
+                        IconButton(
+                            onClick = { if (selectedIds.isNotEmpty()) showRemoveConfirm = true }
+                        ) {
+                            Icon(Icons.Filled.Delete, contentDescription = "Remove from album")
+                        }
                     }
-                }
-            )
+                )
+            } else {
+                TopAppBar(
+                    title = { Text(album?.name ?: "Album") },
+                    navigationIcon = {
+                        IconButton(onClick = onBack) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        }
+                    }
+                )
+            }
         }
     ) { padding ->
         Column(
@@ -125,7 +169,7 @@ fun AlbumScreen(
                 .padding(horizontal = 16.dp)
         ) {
             val current = album
-            if (current != null) {
+            if (current != null && !selectionMode) {
                 Spacer(Modifier.height(8.dp))
                 Card(Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(16.dp)) {
@@ -179,7 +223,7 @@ fun AlbumScreen(
 
             // ---- Şu an duvar kağıdında gösterilen fotoğraf ----
             val cur = currentPhoto
-            if (cur != null) {
+            if (cur != null && !selectionMode) {
                 val albumScale = current?.scaleMode ?: ScaleMode.FILL
                 val effective = if (cur.scaleMode == ScaleMode.ALBUM) albumScale else cur.scaleMode
                 val effLabel = (if (effective == ScaleMode.FIT) "Fit" else "Fill") +
@@ -259,7 +303,16 @@ fun AlbumScreen(
                         PhotoCell(
                             photo = photo,
                             isCurrent = photo.path == currentPath,
-                            onClick = { photoForScale = photo }
+                            selectionMode = selectionMode,
+                            selected = selectedIds.contains(photo.id),
+                            onClick = {
+                                if (selectionMode) toggleSelection(photo.id)
+                                else photoForScale = photo
+                            },
+                            onLongClick = {
+                                if (!selectionMode) selectionMode = true
+                                toggleSelection(photo.id)
+                            }
                         )
                     }
                 }
@@ -276,9 +329,35 @@ fun AlbumScreen(
                 viewModel.setPhotoScale(target, mode)
                 photoForScale = null
             },
+            onSetWallpaper = {
+                viewModel.setAsWallpaper(target)
+                photoForScale = null
+            },
             onDelete = {
                 viewModel.deletePhoto(target)
                 photoForScale = null
+            }
+        )
+    }
+
+    if (showRemoveConfirm) {
+        val count = selectedIds.size
+        AlertDialog(
+            onDismissRequest = { showRemoveConfirm = false },
+            title = { Text("Remove photos") },
+            text = { Text("Remove $count photo(s) from this album? This deletes the copies stored by the app.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    val toRemove = photos.filter { selectedIds.contains(it.id) }
+                    viewModel.deletePhotos(toRemove)
+                    showRemoveConfirm = false
+                    exitSelection()
+                }) {
+                    Text("Remove", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showRemoveConfirm = false }) { Text("Cancel") }
             }
         )
     }
@@ -304,17 +383,30 @@ private fun formatElapsed(millis: Long): String {
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun PhotoCell(photo: Photo, isCurrent: Boolean, onClick: () -> Unit) {
-    val borderMod = if (isCurrent) {
-        Modifier.border(3.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(8.dp))
+private fun PhotoCell(
+    photo: Photo,
+    isCurrent: Boolean,
+    selectionMode: Boolean,
+    selected: Boolean,
+    onClick: () -> Unit,
+    onLongClick: () -> Unit
+) {
+    val borderColor = when {
+        selected -> MaterialTheme.colorScheme.primary
+        isCurrent -> MaterialTheme.colorScheme.primary
+        else -> null
+    }
+    val borderMod = if (borderColor != null) {
+        Modifier.border(3.dp, borderColor, RoundedCornerShape(8.dp))
     } else Modifier
     Box(
         Modifier
             .aspectRatio(1f)
             .then(borderMod)
             .clip(RoundedCornerShape(8.dp))
-            .clickable { onClick() }
+            .combinedClickable(onClick = onClick, onLongClick = onLongClick)
     ) {
         AsyncImage(
             model = File(photo.path),
@@ -322,8 +414,29 @@ private fun PhotoCell(photo: Photo, isCurrent: Boolean, onClick: () -> Unit) {
             contentScale = ContentScale.Crop,
             modifier = Modifier.fillMaxSize()
         )
+        // Seçim modunda: seçili fotoğrafın üstüne yarı saydam katman + onay işareti.
+        if (selectionMode) {
+            if (selected) {
+                Box(
+                    Modifier
+                        .fillMaxSize()
+                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.35f))
+                )
+            }
+            Icon(
+                imageVector = Icons.Filled.CheckCircle,
+                contentDescription = null,
+                tint = if (selected) MaterialTheme.colorScheme.primary
+                       else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(4.dp)
+                    .size(22.dp)
+                    .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(50))
+            )
+        }
         // O an gösterilen fotoğraf -> sol üstte "Şu an" rozeti.
-        if (isCurrent) {
+        if (isCurrent && !selectionMode) {
             Box(
                 Modifier
                     .align(Alignment.TopStart)
@@ -364,6 +477,7 @@ private fun PhotoScaleDialog(
     photo: Photo,
     onDismiss: () -> Unit,
     onPick: (String) -> Unit,
+    onSetWallpaper: () -> Unit,
     onDelete: () -> Unit
 ) {
     val options = listOf(
@@ -390,6 +504,15 @@ private fun PhotoScaleDialog(
                         )
                         Text(label)
                     }
+                }
+                Spacer(Modifier.height(12.dp))
+                // Seçilen fotoğrafı hemen duvar kağıdı yap (timer sıfırlanır).
+                Button(
+                    onClick = onSetWallpaper,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(Icons.Filled.Wallpaper, contentDescription = null)
+                    Text("  Set as wallpaper now")
                 }
             }
         },

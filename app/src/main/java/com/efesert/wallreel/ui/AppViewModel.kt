@@ -84,6 +84,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun addPhotos(albumId: Long, uris: List<Uri>) = viewModelScope.launch { repo.addPhotos(albumId, uris) }
     fun setPhotoScale(photo: Photo, scale: String) = viewModelScope.launch { repo.setPhotoScale(photo, scale) }
     fun deletePhoto(photo: Photo) = viewModelScope.launch { repo.deletePhoto(photo) }
+    fun deletePhotos(photos: List<Photo>) = viewModelScope.launch { repo.deletePhotos(photos) }
+    fun setAsWallpaper(photo: Photo) = viewModelScope.launch { repo.setAsWallpaper(photo) }
 
     // ---- Ayarlar ----
     fun setInterval(minutes: Int) {
