@@ -2,6 +2,7 @@ package com.efesert.wallreel.data
 
 import android.content.Context
 import android.net.Uri
+import androidx.documentfile.provider.DocumentFile
 import com.efesert.wallreel.playlist.PlaylistController
 import com.efesert.wallreel.playlist.Prefs
 import com.efesert.wallreel.scheduler.WallpaperScheduler
@@ -22,6 +23,36 @@ class Repository(private val context: Context) {
     // ---- Albümler ----
     suspend fun createAlbum(name: String): Long = withContext(Dispatchers.IO) {
         dao.insertAlbum(Album(name = name.ifBlank { "Album" }))
+    }
+
+    /**
+     * Seçilen klasörü (SAF tree uri) yeni bir albüm olarak ekler ve içindeki
+     * tüm resimleri otomatik kopyalar. Klasör adı albüm adı olur.
+     * Eklenen fotoğraf sayısını döndürür (-1 = klasör okunamadı).
+     */
+    suspend fun createAlbumFromFolder(treeUri: Uri): Int = withContext(Dispatchers.IO) {
+        val tree = DocumentFile.fromTreeUri(context, treeUri) ?: return@withContext -1
+        val name = tree.name?.takeIf { it.isNotBlank() } ?: "Folder"
+        val albumId = dao.insertAlbum(Album(name = name))
+        val dir = File(context.filesDir, "albums/$albumId").apply { mkdirs() }
+        var added = 0
+        for (doc in tree.listFiles()) {
+            val type = doc.type
+            if (!doc.isFile || type == null || !type.startsWith("image/")) continue
+            try {
+                val file = File(dir, "${UUID.randomUUID()}.jpg")
+                context.contentResolver.openInputStream(doc.uri)?.use { input ->
+                    file.outputStream().use { output -> input.copyTo(output) }
+                }
+                if (file.exists() && file.length() > 0) {
+                    dao.insertPhoto(Photo(albumId = albumId, path = file.absolutePath))
+                    added++
+                }
+            } catch (e: Exception) {
+                // tek bir resim kopyalanamazsa diğerlerine devam et
+            }
+        }
+        added
     }
 
     suspend fun renameAlbum(album: Album, name: String) = withContext(Dispatchers.IO) {

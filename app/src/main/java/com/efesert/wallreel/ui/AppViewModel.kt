@@ -37,6 +37,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     private val _shuffle = MutableStateFlow(Prefs.shuffle(context))
     val shuffle: StateFlow<Boolean> = _shuffle.asStateFlow()
 
+    // Klasörden albüm içe aktarılırken true (UI'da ilerleme göstergesi için).
+    private val _importing = MutableStateFlow(false)
+    val importing: StateFlow<Boolean> = _importing.asStateFlow()
+
     // O an duvar kağıdında gösterilen fotoğrafın dosya yolu.
     // Duvar kağıdı her değiştiğinde (çift dokunma / zamanlayıcı / scale) güncellenir.
     private val _currentPath = MutableStateFlow(Prefs.currentPath(context))
@@ -75,6 +79,14 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     // ---- Albüm işlemleri ----
     fun createAlbum(name: String) = viewModelScope.launch { repo.createAlbum(name) }
+    fun addFolder(treeUri: android.net.Uri) = viewModelScope.launch {
+        _importing.value = true
+        try {
+            repo.createAlbumFromFolder(treeUri)
+        } finally {
+            _importing.value = false
+        }
+    }
     fun renameAlbum(album: Album, name: String) = viewModelScope.launch { repo.renameAlbum(album, name) }
     fun deleteAlbum(album: Album) = viewModelScope.launch { repo.deleteAlbum(album) }
     fun setActiveAlbum(album: Album) = viewModelScope.launch { repo.setActiveAlbum(album) }

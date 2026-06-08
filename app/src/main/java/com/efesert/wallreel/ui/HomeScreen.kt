@@ -4,6 +4,8 @@ import android.app.WallpaperManager
 import android.content.ComponentName
 import android.content.Intent
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -13,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -20,16 +23,21 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
@@ -75,12 +83,21 @@ fun HomeScreen(
 
     var showCreate by remember { mutableStateOf(false) }
     var showCustomInterval by remember { mutableStateOf(false) }
+    var showAddMenu by remember { mutableStateOf(false) }
+    val importing by viewModel.importing.collectAsState()
+
+    // Telefondan klasör seçtirir; seçilen klasör albüm olarak içe aktarılır.
+    val folderPicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocumentTree()
+    ) { uri ->
+        if (uri != null) viewModel.addFolder(uri)
+    }
 
     Scaffold(
         topBar = { TopAppBar(title = { Text("Wallreel") }) },
         floatingActionButton = {
-            FloatingActionButton(onClick = { showCreate = true }) {
-                Icon(Icons.Filled.Add, contentDescription = "Add album")
+            FloatingActionButton(onClick = { showAddMenu = true }) {
+                Icon(Icons.Filled.Add, contentDescription = "Add")
             }
         }
     ) { padding ->
@@ -181,6 +198,48 @@ fun HomeScreen(
 
             item { Spacer(Modifier.height(80.dp)) }
         }
+    }
+
+    // ---- FAB menüsü: Albüm oluştur / Klasör ekle ----
+    if (showAddMenu) {
+        ModalBottomSheet(onDismissRequest = { showAddMenu = false }) {
+            Column(Modifier.fillMaxWidth().padding(bottom = 24.dp)) {
+                ListItem(
+                    headlineContent = { Text("Create album") },
+                    supportingContent = { Text("Empty album, add photos manually") },
+                    leadingContent = { Icon(Icons.Filled.PhotoLibrary, contentDescription = null) },
+                    modifier = Modifier.clickable {
+                        showAddMenu = false
+                        showCreate = true
+                    }
+                )
+                ListItem(
+                    headlineContent = { Text("Add folder") },
+                    supportingContent = { Text("Import all photos from a device folder") },
+                    leadingContent = { Icon(Icons.Filled.Folder, contentDescription = null) },
+                    modifier = Modifier.clickable {
+                        showAddMenu = false
+                        folderPicker.launch(null)
+                    }
+                )
+            }
+        }
+    }
+
+    // ---- Klasör içe aktarılıyor göstergesi ----
+    if (importing) {
+        AlertDialog(
+            onDismissRequest = { },
+            confirmButton = { },
+            title = { Text("Importing folder…") },
+            text = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                    Spacer(Modifier.size(16.dp))
+                    Text("Copying photos, please wait…")
+                }
+            }
+        )
     }
 
     if (showCreate) {
