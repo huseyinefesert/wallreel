@@ -16,6 +16,7 @@ object Prefs {
     private const val KEY_CURRENT_PATH = "current_path"
     private const val KEY_CURRENT_SCALE = "current_scale"
     private const val KEY_LAST_CHANGE = "last_change_time"
+    private const val KEY_SORT = "photo_sort"
 
     private fun prefs(context: Context) =
         context.applicationContext.getSharedPreferences(FILE, Context.MODE_PRIVATE)
@@ -74,4 +75,11 @@ object Prefs {
     // Değişim zamanını "şimdi" olarak işaretle (timer'ı sıfırlamak için).
     fun markChangedNow(context: Context) =
         prefs(context).edit().putLong(KEY_LAST_CHANGE, System.currentTimeMillis()).apply()
+
+    // Albüm ekranındaki fotoğraf sıralama tercihi (sadece görüntüleme).
+    fun photoSort(context: Context): String =
+        prefs(context).getString(KEY_SORT, "ADDED_OLD") ?: "ADDED_OLD"
+
+    fun setPhotoSort(context: Context, mode: String) =
+        prefs(context).edit().putString(KEY_SORT, mode).apply()
 }

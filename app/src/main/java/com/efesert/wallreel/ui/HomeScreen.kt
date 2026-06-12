@@ -8,6 +8,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -17,19 +18,25 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowDownward
+import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButton
@@ -84,6 +91,7 @@ fun HomeScreen(
     var showCreate by remember { mutableStateOf(false) }
     var showCustomInterval by remember { mutableStateOf(false) }
     var showAddMenu by remember { mutableStateOf(false) }
+    var albumToRename by remember { mutableStateOf<Album?>(null) }
     val importing by viewModel.importing.collectAsState()
 
     // Telefondan klasör seçtirir; seçilen klasör albüm olarak içe aktarılır.
@@ -187,11 +195,16 @@ fun HomeScreen(
                 }
             }
 
-            items(albums, key = { it.id }) { album ->
+            itemsIndexed(albums, key = { _, a -> a.id }) { index, album ->
                 AlbumRow(
                     album = album,
+                    canMoveUp = index > 0,
+                    canMoveDown = index < albums.lastIndex,
                     onOpen = { onOpenAlbum(album.id) },
                     onSetActive = { viewModel.setActiveAlbum(album) },
+                    onRename = { albumToRename = album },
+                    onMoveUp = { viewModel.moveAlbum(album, up = true) },
+                    onMoveDown = { viewModel.moveAlbum(album, up = false) },
                     onDelete = { viewModel.deleteAlbum(album) }
                 )
             }
@@ -238,6 +251,32 @@ fun HomeScreen(
                     Spacer(Modifier.size(16.dp))
                     Text("Copying photos, please wait…")
                 }
+            }
+        )
+    }
+
+    val renaming = albumToRename
+    if (renaming != null) {
+        var newName by remember(renaming.id) { mutableStateOf(renaming.name) }
+        AlertDialog(
+            onDismissRequest = { albumToRename = null },
+            title = { Text("Rename album") },
+            text = {
+                OutlinedTextField(
+                    value = newName,
+                    onValueChange = { newName = it },
+                    label = { Text("Album name") },
+                    singleLine = true
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.renameAlbum(renaming, newName)
+                    albumToRename = null
+                }) { Text("Save") }
+            },
+            dismissButton = {
+                TextButton(onClick = { albumToRename = null }) { Text("Cancel") }
             }
         )
     }
@@ -297,10 +336,16 @@ fun HomeScreen(
 @Composable
 private fun AlbumRow(
     album: Album,
+    canMoveUp: Boolean,
+    canMoveDown: Boolean,
     onOpen: () -> Unit,
     onSetActive: () -> Unit,
+    onRename: () -> Unit,
+    onMoveUp: () -> Unit,
+    onMoveDown: () -> Unit,
     onDelete: () -> Unit
 ) {
+    var menuOpen by remember { mutableStateOf(false) }
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -311,14 +356,13 @@ private fun AlbumRow(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
+                .padding(start = 16.dp, top = 12.dp, bottom = 12.dp, end = 4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(album.name, fontWeight = FontWeight.Bold)
                     if (album.isActive) {
-                        Spacer(Modifier.height(0.dp))
                         Icon(
                             Icons.Filled.CheckCircle,
                             contentDescription = "Active",
@@ -336,8 +380,34 @@ private fun AlbumRow(
             if (!album.isActive) {
                 AssistChip(onClick = onSetActive, label = { Text("Set active") })
             }
-            IconButton(onClick = onDelete) {
-                Icon(Icons.Filled.Delete, contentDescription = "Delete")
+            Box {
+                IconButton(onClick = { menuOpen = true }) {
+                    Icon(Icons.Filled.MoreVert, contentDescription = "More options")
+                }
+                DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                    DropdownMenuItem(
+                        text = { Text("Rename") },
+                        leadingIcon = { Icon(Icons.Filled.Edit, contentDescription = null) },
+                        onClick = { menuOpen = false; onRename() }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Move up") },
+                        enabled = canMoveUp,
+                        leadingIcon = { Icon(Icons.Filled.ArrowUpward, contentDescription = null) },
+                        onClick = { menuOpen = false; onMoveUp() }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Move down") },
+                        enabled = canMoveDown,
+                        leadingIcon = { Icon(Icons.Filled.ArrowDownward, contentDescription = null) },
+                        onClick = { menuOpen = false; onMoveDown() }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Delete") },
+                        leadingIcon = { Icon(Icons.Filled.Delete, contentDescription = null) },
+                        onClick = { menuOpen = false; onDelete() }
+                    )
+                }
             }
         }
     }

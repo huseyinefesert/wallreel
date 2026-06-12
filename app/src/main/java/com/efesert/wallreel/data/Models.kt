@@ -1,5 +1,6 @@
 package com.efesert.wallreel.data
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
@@ -24,7 +25,9 @@ data class Album(
     /** Albümün geneli için varsayılan scale: FILL veya FIT */
     val scaleMode: String = ScaleMode.FILL,
     val isActive: Boolean = false,
-    val createdAt: Long = System.currentTimeMillis()
+    val createdAt: Long = System.currentTimeMillis(),
+    /** Ana ekrandaki sıralama konumu (küçük = üstte) */
+    @ColumnInfo(defaultValue = "0") val position: Int = 0
 )
 
 @Entity(
@@ -46,5 +49,9 @@ data class Photo(
     val path: String,
     /** Foto özel scale: ALBUM (varsayılan, albümü miras al), FILL veya FIT */
     val scaleMode: String = ScaleMode.ALBUM,
-    val addedAt: Long = System.currentTimeMillis()
+    val addedAt: Long = System.currentTimeMillis(),
+    /** Orijinal dosya adı (kopyalama öncesi). null = bilinmiyor */
+    val displayName: String? = null,
+    /** Orijinal dosyanın değiştirilme/oluşturulma tarihi (epoch millis). 0 = bilinmiyor */
+    @ColumnInfo(defaultValue = "0") val sourceDate: Long = 0L
 )

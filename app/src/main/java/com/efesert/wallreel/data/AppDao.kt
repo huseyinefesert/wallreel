@@ -11,8 +11,11 @@ import kotlinx.coroutines.flow.Flow
 interface AppDao {
 
     // ---- Albums ----
-    @Query("SELECT * FROM albums ORDER BY createdAt ASC")
+    @Query("SELECT * FROM albums ORDER BY position ASC, createdAt ASC")
     fun observeAlbums(): Flow<List<Album>>
+
+    @Query("SELECT * FROM albums ORDER BY position ASC, createdAt ASC")
+    suspend fun getAlbumsOnce(): List<Album>
 
     @Query("SELECT * FROM albums WHERE isActive = 1 LIMIT 1")
     suspend fun getActiveAlbum(): Album?

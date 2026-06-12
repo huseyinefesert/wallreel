@@ -16,6 +16,9 @@ release/
 .externalNativeBuild/
 .cxx/
 
+# ---- Kotlin compiler output ----
+.kotlin/
+
 # ---- Android Studio / IntelliJ ----
 *.iml
 /.idea/

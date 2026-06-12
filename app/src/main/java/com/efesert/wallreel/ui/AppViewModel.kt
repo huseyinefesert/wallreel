@@ -41,6 +41,15 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     private val _importing = MutableStateFlow(false)
     val importing: StateFlow<Boolean> = _importing.asStateFlow()
 
+    // Albüm ekranındaki fotoğraf sıralama tercihi.
+    private val _photoSort = MutableStateFlow(Prefs.photoSort(context))
+    val photoSort: StateFlow<String> = _photoSort.asStateFlow()
+
+    fun setPhotoSort(mode: String) {
+        _photoSort.value = mode
+        Prefs.setPhotoSort(context, mode)
+    }
+
     // O an duvar kağıdında gösterilen fotoğrafın dosya yolu.
     // Duvar kağıdı her değiştiğinde (çift dokunma / zamanlayıcı / scale) güncellenir.
     private val _currentPath = MutableStateFlow(Prefs.currentPath(context))
@@ -88,6 +97,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
     fun renameAlbum(album: Album, name: String) = viewModelScope.launch { repo.renameAlbum(album, name) }
+    fun moveAlbum(album: Album, up: Boolean) = viewModelScope.launch { repo.moveAlbum(album, up) }
     fun deleteAlbum(album: Album) = viewModelScope.launch { repo.deleteAlbum(album) }
     fun setActiveAlbum(album: Album) = viewModelScope.launch { repo.setActiveAlbum(album) }
     fun setAlbumScale(album: Album, scale: String) = viewModelScope.launch { repo.setAlbumScale(album, scale) }

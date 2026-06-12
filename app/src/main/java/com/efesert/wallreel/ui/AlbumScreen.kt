@@ -27,14 +27,19 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AddPhotoAlternate
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.SwapVert
 import androidx.compose.material.icons.filled.Wallpaper
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -62,6 +67,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.efesert.wallreel.data.Photo
@@ -111,6 +117,11 @@ fun AlbumScreen(
     val gridState = rememberLazyGridState()
     val scope = rememberCoroutineScope()
 
+    // Fotoğraf sıralama (sadece görüntüleme; playlist sırasını değiştirmez).
+    val sortMode by viewModel.photoSort.collectAsState()
+    var sortMenuOpen by remember { mutableStateOf(false) }
+    val displayPhotos = remember(photos, sortMode) { sortPhotos(photos, sortMode) }
+
     // "X dakika önce" yazısının zamanla ilerlemesi için her 30 sn'de bir "şimdi"yi tazele.
     var now by remember { mutableStateOf(System.currentTimeMillis()) }
     LaunchedEffect(Unit) {
@@ -121,7 +132,7 @@ fun AlbumScreen(
     }
 
     fun scrollToCurrent() {
-        val index = photos.indexOfFirst { it.path == currentPath }
+        val index = displayPhotos.indexOfFirst { it.path == currentPath }
         if (index >= 0) scope.launch { gridState.animateScrollToItem(index) }
     }
 
@@ -156,6 +167,32 @@ fun AlbumScreen(
                     navigationIcon = {
                         IconButton(onClick = onBack) {
                             Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        }
+                    },
+                    actions = {
+                        Box {
+                            IconButton(onClick = { sortMenuOpen = true }) {
+                                Icon(Icons.Filled.SwapVert, contentDescription = "Sort")
+                            }
+                            DropdownMenu(
+                                expanded = sortMenuOpen,
+                                onDismissRequest = { sortMenuOpen = false }
+                            ) {
+                                sortOptions.forEach { (mode, label) ->
+                                    DropdownMenuItem(
+                                        text = { Text(label) },
+                                        trailingIcon = {
+                                            if (sortMode == mode) {
+                                                Icon(Icons.Filled.Check, contentDescription = null)
+                                            }
+                                        },
+                                        onClick = {
+                                            viewModel.setPhotoSort(mode)
+                                            sortMenuOpen = false
+                                        }
+                                    )
+                                }
+                            }
                         }
                     }
                 )
@@ -299,7 +336,7 @@ fun AlbumScreen(
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                     verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    items(photos, key = { it.id }) { photo ->
+                    items(displayPhotos, key = { it.id }) { photo ->
                         PhotoCell(
                             photo = photo,
                             isCurrent = photo.path == currentPath,
@@ -361,6 +398,38 @@ fun AlbumScreen(
             }
         )
     }
+}
+
+private val sortOptions = listOf(
+    "ADDED_OLD" to "Date added (oldest)",
+    "ADDED_NEW" to "Date added (newest)",
+    "NAME_AZ" to "Name (A–Z)",
+    "NAME_ZA" to "Name (Z–A)",
+    "SIZE_DESC" to "Size (largest)",
+    "SIZE_ASC" to "Size (smallest)"
+)
+
+private fun photoDisplayName(p: Photo): String = p.displayName ?: File(p.path).name
+
+private fun sortPhotos(photos: List<Photo>, mode: String): List<Photo> = when (mode) {
+    "ADDED_NEW" -> photos.sortedByDescending { it.addedAt }
+    "NAME_AZ" -> photos.sortedBy { photoDisplayName(it).lowercase() }
+    "NAME_ZA" -> photos.sortedByDescending { photoDisplayName(it).lowercase() }
+    "SIZE_DESC" -> photos.sortedByDescending { runCatching { File(it.path).length() }.getOrDefault(0L) }
+    "SIZE_ASC" -> photos.sortedBy { runCatching { File(it.path).length() }.getOrDefault(0L) }
+    else -> photos.sortedBy { it.addedAt } // ADDED_OLD
+}
+
+private fun formatFileSize(bytes: Long): String {
+    if (bytes <= 0) return "—"
+    val kb = bytes / 1024.0
+    return if (kb < 1024) "%.0f KB".format(kb) else "%.1f MB".format(kb / 1024.0)
+}
+
+private fun formatPhotoDate(millis: Long): String {
+    if (millis <= 0) return "—"
+    return java.text.SimpleDateFormat("d MMM yyyy, HH:mm", java.util.Locale.getDefault())
+        .format(java.util.Date(millis))
 }
 
 /** "5 min ago", "1 h 20 min ago", "2 d 3 h ago" gibi okunaklı geçen süre metni. */
@@ -485,11 +554,41 @@ private fun PhotoScaleDialog(
         ScaleMode.FILL to "Fill (cover, crop)",
         ScaleMode.FIT to "Fit (show whole image)"
     )
+    val fileSize = remember(photo.path) {
+        runCatching { File(photo.path).length() }.getOrDefault(0L)
+    }
+    val dateMillis = if (photo.sourceDate > 0) photo.sourceDate else photo.addedAt
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Photo scale") },
+        title = { Text("Photo") },
         text = {
             Column {
+                // ---- Açıklama: ad, boyut, tarih ----
+                Text(
+                    photoDisplayName(photo),
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    "Size: ${formatFileSize(fileSize)}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    "Date: ${formatPhotoDate(dateMillis)}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(Modifier.height(10.dp))
+                HorizontalDivider()
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    "Scale",
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Bold
+                )
+
                 options.forEach { (mode, label) ->
                     Row(
                         Modifier
