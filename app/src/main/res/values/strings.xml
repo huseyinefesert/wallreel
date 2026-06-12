@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Wallreel</string>
+    <string name="app_name">WallReel</string>
     <string name="wallpaper_desc">Turns photos from your selected album into wallpapers with a timer and shuffle. Double-tap on the home screen to jump to the next one.</string>
 </resources>
