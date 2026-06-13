@@ -39,10 +39,10 @@ interface AppDao {
     suspend fun setActiveFlag(id: Long)
 
     // ---- Photos ----
-    @Query("SELECT * FROM photos WHERE albumId = :albumId ORDER BY addedAt ASC, id ASC")
+    @Query("SELECT * FROM photos WHERE albumId = :albumId ORDER BY position ASC, addedAt ASC, id ASC")
     fun observePhotos(albumId: Long): Flow<List<Photo>>
 
-    @Query("SELECT * FROM photos WHERE albumId = :albumId ORDER BY addedAt ASC, id ASC")
+    @Query("SELECT * FROM photos WHERE albumId = :albumId ORDER BY position ASC, addedAt ASC, id ASC")
     suspend fun getPhotos(albumId: Long): List<Photo>
 
     @Insert

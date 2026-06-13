@@ -18,18 +18,30 @@ object PlaylistController {
     data class Entry(val path: String, val scale: String)
 
     /**
-     * Sırayı yeniden kurar. Aktif albüm, fotoğraflar, scale çözümü ve shuffle
-     * durumu değiştiğinde çağrılır.
+     * Sırayı yeniden kurar ama O AN gösterilen fotoğrafı KORUR.
+     * Foto ekleme/çıkarma, sıralama (custom order) veya shuffle değişiminde kullanılır:
+     * mevcut fotoğraf yeni kuyrukta da varsa ona denk gelen index'e geçilir, fotoğraf
+     * DEĞİŞMEZ ve timer SIFIRLANMAZ. Mevcut foto artık yoksa (silindiyse / albüm
+     * değiştiyse) baştan başlanır.
      */
-    fun rebuild(context: Context, entries: List<Entry>, shuffle: Boolean) {
+    fun rebuildPreserving(context: Context, entries: List<Entry>, shuffle: Boolean) {
+        val currentPath = Prefs.currentPath(context)
         val ordered = if (shuffle) entries.shuffled() else entries
         val arr = JSONArray()
         for (e in ordered) {
             arr.put(JSONObject().put("p", e.path).put("s", e.scale))
         }
         Prefs.setQueueJson(context, arr.toString())
-        Prefs.setCurrentIndex(context, 0)
-        applyCurrent(context)
+        val newIndex = ordered.indexOfFirst { it.path == currentPath }
+        if (newIndex >= 0) {
+            // Mevcut foto korunuyor: aynı path -> Prefs.setCurrent zamanı sıfırlamaz.
+            Prefs.setCurrentIndex(context, newIndex)
+            Prefs.setCurrent(context, ordered[newIndex].path, ordered[newIndex].scale)
+        } else {
+            // Mevcut foto yok: baştan başla (foto değişir).
+            Prefs.setCurrentIndex(context, 0)
+            applyCurrent(context)
+        }
         broadcast(context)
     }
 

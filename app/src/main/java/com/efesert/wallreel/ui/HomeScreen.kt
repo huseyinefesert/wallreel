@@ -87,6 +87,7 @@ fun HomeScreen(
     val albums by viewModel.albums.collectAsState()
     val interval by viewModel.intervalMinutes.collectAsState()
     val shuffle by viewModel.shuffle.collectAsState()
+    val doubleTap by viewModel.doubleTapEnabled.collectAsState()
 
     var showCreate by remember { mutableStateOf(false) }
     var showCustomInterval by remember { mutableStateOf(false) }
@@ -102,7 +103,7 @@ fun HomeScreen(
     }
 
     Scaffold(
-        topBar = { TopAppBar(title = { Text("Wallreel") }) },
+        topBar = { TopAppBar(title = { Text("WallReel") }) },
         floatingActionButton = {
             FloatingActionButton(onClick = { showAddMenu = true }) {
                 Icon(Icons.Filled.Add, contentDescription = "Add")
@@ -159,6 +160,22 @@ fun HomeScreen(
                                 )
                             }
                             Switch(checked = shuffle, onCheckedChange = { viewModel.setShuffle(it) })
+                        }
+
+                        Spacer(Modifier.height(16.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Column(Modifier.weight(1f)) {
+                                Text("Double-tap to change", fontWeight = FontWeight.Bold)
+                                Text(
+                                    "Double-tap the home screen to jump to the next photo",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            Switch(
+                                checked = doubleTap,
+                                onCheckedChange = { viewModel.setDoubleTapEnabled(it) }
+                            )
                         }
 
                         Spacer(Modifier.height(16.dp))

@@ -51,7 +51,8 @@ class Repository(private val context: Context) {
                             albumId = albumId,
                             path = file.absolutePath,
                             displayName = doc.name,
-                            sourceDate = doc.lastModified()
+                            sourceDate = doc.lastModified(),
+                            position = added
                         )
                     )
                     added++
@@ -104,6 +105,8 @@ class Repository(private val context: Context) {
     /** Seçilen resimleri uygulamanın iç depolamasına kopyalar (reboot sonrası da erişim için). */
     suspend fun addPhotos(albumId: Long, uris: List<Uri>) = withContext(Dispatchers.IO) {
         val dir = File(context.filesDir, "albums/$albumId").apply { mkdirs() }
+        // Yeni fotoğraflar listenin SONUNA eklenir (mevcut en yüksek pozisyondan sonra).
+        var nextPos = (dao.getPhotos(albumId).maxOfOrNull { it.position } ?: -1) + 1
         for (uri in uris) {
             try {
                 val (origName, origDate) = queryMeta(uri)
@@ -117,7 +120,8 @@ class Repository(private val context: Context) {
                             albumId = albumId,
                             path = file.absolutePath,
                             displayName = origName,
-                            sourceDate = origDate
+                            sourceDate = origDate,
+                            position = nextPos++
                         )
                     )
                 }
@@ -126,6 +130,21 @@ class Repository(private val context: Context) {
             }
         }
         refreshIfActive(albumId)
+    }
+
+    /** Fotoğrafı albüm içinde bir yukarı/aşağı taşır ve pozisyonları normalize eder. */
+    suspend fun movePhoto(photo: Photo, up: Boolean) = withContext(Dispatchers.IO) {
+        val list = dao.getPhotos(photo.albumId).toMutableList()
+        val idx = list.indexOfFirst { it.id == photo.id }
+        val target = if (up) idx - 1 else idx + 1
+        if (idx < 0 || target < 0 || target >= list.size) return@withContext
+        val tmp = list[idx]
+        list[idx] = list[target]
+        list[target] = tmp
+        list.forEachIndexed { i, p ->
+            if (p.position != i) dao.updatePhoto(p.copy(position = i))
+        }
+        refreshIfActive(photo.albumId)
     }
 
     /** Bir content uri'sinden orijinal dosya adı ve değiştirilme tarihini okur. */
@@ -209,18 +228,23 @@ class Repository(private val context: Context) {
         PlaylistController.updateScales(context, map)
     }
 
-    /** Aktif albümün fotoğraflarından playlist sırasını yeniden kurar. */
+    /**
+     * Aktif albümün fotoğraflarından playlist sırasını yeniden kurar.
+     * Shuffle kapalıysa seçili sıralama modunu (PhotoSort) izler -> gördüğün
+     * sırayla çalar. O an gösterilen fotoğraf korunur (foto ekleme/çıkarma/taşıma
+     * sırada atlamaya yol açmaz); foto artık yoksa veya albüm değiştiyse baştan başlar.
+     */
     suspend fun refreshQueue() = withContext(Dispatchers.IO) {
         val active = dao.getActiveAlbum()
         if (active == null) {
-            PlaylistController.rebuild(context, emptyList(), Prefs.shuffle(context))
+            PlaylistController.rebuildPreserving(context, emptyList(), Prefs.shuffle(context))
             return@withContext
         }
-        val photos = dao.getPhotos(active.id)
+        val photos = PhotoSort.sort(dao.getPhotos(active.id), Prefs.photoSort(context))
         val entries = photos.map { photo ->
             val resolved = if (photo.scaleMode == ScaleMode.ALBUM) active.scaleMode else photo.scaleMode
             PlaylistController.Entry(photo.path, resolved)
         }
-        PlaylistController.rebuild(context, entries, Prefs.shuffle(context))
+        PlaylistController.rebuildPreserving(context, entries, Prefs.shuffle(context))
     }
 }

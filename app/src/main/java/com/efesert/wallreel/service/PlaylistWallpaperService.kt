@@ -70,8 +70,10 @@ class PlaylistWallpaperService : WallpaperService() {
             GestureDetector(this@PlaylistWallpaperService,
                 object : GestureDetector.SimpleOnGestureListener() {
                     override fun onDoubleTap(e: MotionEvent): Boolean {
-                        // Çift dokunma -> 1 saati beklemeden hemen sıradakine geç.
-                        PlaylistController.advance(this@PlaylistWallpaperService)
+                        // Çift dokunma -> hemen sıradakine geç (ayardan kapatılabilir).
+                        if (Prefs.doubleTapEnabled(this@PlaylistWallpaperService)) {
+                            PlaylistController.advance(this@PlaylistWallpaperService)
+                        }
                         return true
                     }
                 })

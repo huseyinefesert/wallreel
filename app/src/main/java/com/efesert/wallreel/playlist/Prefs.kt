@@ -16,6 +16,7 @@ object Prefs {
     private const val KEY_CURRENT_PATH = "current_path"
     private const val KEY_CURRENT_SCALE = "current_scale"
     private const val KEY_LAST_CHANGE = "last_change_time"
+    private const val KEY_DOUBLE_TAP = "double_tap_enabled"
     private const val KEY_SORT = "photo_sort"
 
     private fun prefs(context: Context) =
@@ -76,7 +77,15 @@ object Prefs {
     fun markChangedNow(context: Context) =
         prefs(context).edit().putLong(KEY_LAST_CHANGE, System.currentTimeMillis()).apply()
 
-    // Albüm ekranındaki fotoğraf sıralama tercihi (sadece görüntüleme).
+    // Ana ekrandaki çift dokunma ile fotoğraf değiştirme açık mı? Varsayılan açık.
+    fun doubleTapEnabled(context: Context): Boolean =
+        prefs(context).getBoolean(KEY_DOUBLE_TAP, true)
+
+    fun setDoubleTapEnabled(context: Context, value: Boolean) =
+        prefs(context).edit().putBoolean(KEY_DOUBLE_TAP, value).apply()
+
+    // Albüm içi fotoğraf sıralama modu. Hem gösterimi hem (shuffle kapalıyken)
+    // kuyruğun sırasını belirler. Bkz. PhotoSort.
     fun photoSort(context: Context): String =
         prefs(context).getString(KEY_SORT, "ADDED_OLD") ?: "ADDED_OLD"
 

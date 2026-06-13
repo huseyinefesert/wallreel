@@ -27,6 +27,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AddPhotoAlternate
+import androidx.compose.material.icons.filled.ArrowDownward
+import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
@@ -71,6 +73,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.efesert.wallreel.data.Photo
+import com.efesert.wallreel.data.PhotoSort
 import com.efesert.wallreel.data.ScaleMode
 import kotlinx.coroutines.launch
 import java.io.File
@@ -117,10 +120,10 @@ fun AlbumScreen(
     val gridState = rememberLazyGridState()
     val scope = rememberCoroutineScope()
 
-    // Fotoğraf sıralama (sadece görüntüleme; playlist sırasını değiştirmez).
+    // Fotoğraf sıralama modu. Gösterim sırasını ve (shuffle kapalıyken) kuyruğu belirler.
     val sortMode by viewModel.photoSort.collectAsState()
     var sortMenuOpen by remember { mutableStateOf(false) }
-    val displayPhotos = remember(photos, sortMode) { sortPhotos(photos, sortMode) }
+    val displayPhotos = remember(photos, sortMode) { PhotoSort.sort(photos, sortMode) }
 
     // "X dakika önce" yazısının zamanla ilerlemesi için her 30 sn'de bir "şimdi"yi tazele.
     var now by remember { mutableStateOf(System.currentTimeMillis()) }
@@ -359,8 +362,16 @@ fun AlbumScreen(
 
     val target = photoForScale
     if (target != null) {
+        // Manuel taşıma yalnızca Custom sıralama modunda mümkün.
+        val customOrder = sortMode == PhotoSort.CUSTOM
+        val idx = displayPhotos.indexOfFirst { it.id == target.id }
         PhotoScaleDialog(
             photo = target,
+            customOrder = customOrder,
+            canMoveUp = idx > 0,
+            canMoveDown = idx in 0 until displayPhotos.lastIndex,
+            onMoveUp = { viewModel.movePhoto(target, up = true) },
+            onMoveDown = { viewModel.movePhoto(target, up = false) },
             onDismiss = { photoForScale = null },
             onPick = { mode ->
                 viewModel.setPhotoScale(target, mode)
@@ -401,24 +412,16 @@ fun AlbumScreen(
 }
 
 private val sortOptions = listOf(
-    "ADDED_OLD" to "Date added (oldest)",
-    "ADDED_NEW" to "Date added (newest)",
-    "NAME_AZ" to "Name (A–Z)",
-    "NAME_ZA" to "Name (Z–A)",
-    "SIZE_DESC" to "Size (largest)",
-    "SIZE_ASC" to "Size (smallest)"
+    PhotoSort.CUSTOM to "Custom order",
+    PhotoSort.ADDED_OLD to "Date added (oldest)",
+    PhotoSort.ADDED_NEW to "Date added (newest)",
+    PhotoSort.NAME_AZ to "Name (A–Z)",
+    PhotoSort.NAME_ZA to "Name (Z–A)",
+    PhotoSort.SIZE_DESC to "Size (largest)",
+    PhotoSort.SIZE_ASC to "Size (smallest)"
 )
 
 private fun photoDisplayName(p: Photo): String = p.displayName ?: File(p.path).name
-
-private fun sortPhotos(photos: List<Photo>, mode: String): List<Photo> = when (mode) {
-    "ADDED_NEW" -> photos.sortedByDescending { it.addedAt }
-    "NAME_AZ" -> photos.sortedBy { photoDisplayName(it).lowercase() }
-    "NAME_ZA" -> photos.sortedByDescending { photoDisplayName(it).lowercase() }
-    "SIZE_DESC" -> photos.sortedByDescending { runCatching { File(it.path).length() }.getOrDefault(0L) }
-    "SIZE_ASC" -> photos.sortedBy { runCatching { File(it.path).length() }.getOrDefault(0L) }
-    else -> photos.sortedBy { it.addedAt } // ADDED_OLD
-}
 
 private fun formatFileSize(bytes: Long): String {
     if (bytes <= 0) return "—"
@@ -544,6 +547,11 @@ private fun PhotoCell(
 @Composable
 private fun PhotoScaleDialog(
     photo: Photo,
+    customOrder: Boolean,
+    canMoveUp: Boolean,
+    canMoveDown: Boolean,
+    onMoveUp: () -> Unit,
+    onMoveDown: () -> Unit,
     onDismiss: () -> Unit,
     onPick: (String) -> Unit,
     onSetWallpaper: () -> Unit,
@@ -583,6 +591,36 @@ private fun PhotoScaleDialog(
                 Spacer(Modifier.height(10.dp))
                 HorizontalDivider()
                 Spacer(Modifier.height(6.dp))
+                // ---- Sıra: yalnızca Custom sıralama modunda yukarı/aşağı taşı ----
+                if (customOrder) {
+                    Text(
+                        "Order",
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedButton(
+                            onClick = onMoveUp,
+                            enabled = canMoveUp,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Icon(Icons.Filled.ArrowUpward, contentDescription = null)
+                            Text("  Move up")
+                        }
+                        OutlinedButton(
+                            onClick = onMoveDown,
+                            enabled = canMoveDown,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Icon(Icons.Filled.ArrowDownward, contentDescription = null)
+                            Text("  Move down")
+                        }
+                    }
+                    Spacer(Modifier.height(10.dp))
+                    HorizontalDivider()
+                    Spacer(Modifier.height(6.dp))
+                }
                 Text(
                     "Scale",
                     style = MaterialTheme.typography.labelLarge,

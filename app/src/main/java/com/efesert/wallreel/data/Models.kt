@@ -53,5 +53,7 @@ data class Photo(
     /** Orijinal dosya adı (kopyalama öncesi). null = bilinmiyor */
     val displayName: String? = null,
     /** Orijinal dosyanın değiştirilme/oluşturulma tarihi (epoch millis). 0 = bilinmiyor */
-    @ColumnInfo(defaultValue = "0") val sourceDate: Long = 0L
+    @ColumnInfo(defaultValue = "0") val sourceDate: Long = 0L,
+    /** Albüm içi özel sıralama konumu (küçük = üstte). Playlist sırasını da belirler. */
+    @ColumnInfo(defaultValue = "0") val position: Int = 0
 )

@@ -41,13 +41,24 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     private val _importing = MutableStateFlow(false)
     val importing: StateFlow<Boolean> = _importing.asStateFlow()
 
-    // Albüm ekranındaki fotoğraf sıralama tercihi.
+    // Ana ekranda çift dokunma ile fotoğraf değiştirme açık mı?
+    private val _doubleTapEnabled = MutableStateFlow(Prefs.doubleTapEnabled(context))
+    val doubleTapEnabled: StateFlow<Boolean> = _doubleTapEnabled.asStateFlow()
+
+    fun setDoubleTapEnabled(value: Boolean) {
+        _doubleTapEnabled.value = value
+        Prefs.setDoubleTapEnabled(context, value)
+    }
+
+    // Albüm ekranındaki fotoğraf sıralama modu (gösterim + shuffle kapalıyken kuyruk).
     private val _photoSort = MutableStateFlow(Prefs.photoSort(context))
     val photoSort: StateFlow<String> = _photoSort.asStateFlow()
 
-    fun setPhotoSort(mode: String) {
+    fun setPhotoSort(mode: String) = viewModelScope.launch {
         _photoSort.value = mode
         Prefs.setPhotoSort(context, mode)
+        // Kuyruğu yeni sıraya göre yeniden kur (mevcut fotoğraf korunur).
+        repo.refreshQueue()
     }
 
     // O an duvar kağıdında gösterilen fotoğrafın dosya yolu.
@@ -108,6 +119,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun deletePhoto(photo: Photo) = viewModelScope.launch { repo.deletePhoto(photo) }
     fun deletePhotos(photos: List<Photo>) = viewModelScope.launch { repo.deletePhotos(photos) }
     fun setAsWallpaper(photo: Photo) = viewModelScope.launch { repo.setAsWallpaper(photo) }
+    fun movePhoto(photo: Photo, up: Boolean) = viewModelScope.launch { repo.movePhoto(photo, up) }
 
     // ---- Ayarlar ----
     fun setInterval(minutes: Int) {
