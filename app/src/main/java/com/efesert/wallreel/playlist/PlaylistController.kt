@@ -115,6 +115,30 @@ object PlaylistController {
         broadcast(context)
     }
 
+    /** Bir önceki resme geçer (widget'tan geri gitme). */
+    fun previous(context: Context) {
+        val queue = readQueue(context)
+        if (queue.isEmpty()) {
+            Prefs.setCurrent(context, null, "FILL")
+            broadcast(context)
+            return
+        }
+        val prev = (Prefs.currentIndex(context) - 1 + queue.size) % queue.size
+        Prefs.setCurrentIndex(context, prev)
+        applyCurrent(context)
+        broadcast(context)
+    }
+
+    /** O anki kuyruğun anlık görüntüsü: tüm dosya yolları + mevcut index. */
+    data class Snapshot(val paths: List<String>, val currentIndex: Int)
+
+    fun snapshot(context: Context): Snapshot {
+        val paths = readQueue(context).map { it.path }
+        val index = if (paths.isEmpty()) -1
+        else Prefs.currentIndex(context).coerceIn(0, paths.size - 1)
+        return Snapshot(paths, index)
+    }
+
     /** Index'e karşılık gelen öğeyi "şu an gösterilen" olarak yazar. */
     private fun applyCurrent(context: Context) {
         val queue = readQueue(context)
@@ -142,7 +166,17 @@ object PlaylistController {
     }
 
     private fun broadcast(context: Context) {
-        val intent = Intent(ACTION_CHANGED).setPackage(context.packageName)
-        context.applicationContext.sendBroadcast(intent)
+        val app = context.applicationContext
+        // Çalışan bileşenler (servis motoru, UI) için paket-içi yayın.
+        app.sendBroadcast(Intent(ACTION_CHANGED).setPackage(app.packageName))
+        // Widget'ları her durumda tazelemek için explicit tetik (manifest receiver'a
+        // implicit yayının ulaşmama ihtimaline karşı). Sınıf adı string ile -> bağımlılık yok.
+        runCatching {
+            val widgetIntent = Intent(ACTION_CHANGED).setClassName(
+                app.packageName,
+                "com.efesert.wallreel.widget.WidgetActionReceiver"
+            )
+            app.sendBroadcast(widgetIntent)
+        }
     }
 }

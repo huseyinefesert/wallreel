@@ -27,7 +27,9 @@ data class Album(
     val isActive: Boolean = false,
     val createdAt: Long = System.currentTimeMillis(),
     /** Ana ekrandaki sıralama konumu (küçük = üstte) */
-    @ColumnInfo(defaultValue = "0") val position: Int = 0
+    @ColumnInfo(defaultValue = "0") val position: Int = 0,
+    /** "Add folder" ile oluşturulduysa kaynak klasörün SAF tree uri'si; yenilemede kullanılır. null = normal albüm */
+    val folderUri: String? = null
 )
 
 @Entity(

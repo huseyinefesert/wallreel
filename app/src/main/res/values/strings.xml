@@ -3,4 +3,8 @@
     <string name="app_name">WallReel</string>
     <string name="wallpaper_desc">Turns photos from your selected album into wallpapers with a timer and shuffle. Double-tap on the home screen to jump to the next one.</string>
     <string name="widget_next_desc">WallReel: next photo</string>
+    <string name="widget_medium_desc">WallReel: previous and next photo</string>
+    <string name="widget_large_desc">WallReel: photos, shuffle and double-tap controls</string>
+    <string name="widget_prev_label">‹ Prev</string>
+    <string name="widget_next_label">Next ›</string>
 </resources>

@@ -6,6 +6,8 @@ import android.content.Intent
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -18,6 +20,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -30,6 +33,7 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PhotoLibrary
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Card
@@ -59,11 +63,16 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import coil.compose.AsyncImage
 import com.efesert.wallreel.data.Album
+import com.efesert.wallreel.playlist.PlaylistController
 import com.efesert.wallreel.service.PlaylistWallpaperService
+import java.io.File
 
 private data class IntervalOption(val label: String, val minutes: Int)
 
@@ -88,6 +97,7 @@ fun HomeScreen(
     val interval by viewModel.intervalMinutes.collectAsState()
     val shuffle by viewModel.shuffle.collectAsState()
     val doubleTap by viewModel.doubleTapEnabled.collectAsState()
+    val queue by viewModel.queue.collectAsState()
 
     var showCreate by remember { mutableStateOf(false) }
     var showCustomInterval by remember { mutableStateOf(false) }
@@ -195,6 +205,16 @@ fun HomeScreen(
                 }
             }
 
+            // ---- Sıradakiler (queue önizleme) ----
+            if (queue.paths.isNotEmpty() && queue.currentIndex >= 0) {
+                item {
+                    QueueStrip(
+                        queue = queue,
+                        onJump = { path -> viewModel.jumpToQueue(path) }
+                    )
+                }
+            }
+
             item {
                 Text(
                     "Albums",
@@ -222,6 +242,7 @@ fun HomeScreen(
                     onRename = { albumToRename = album },
                     onMoveUp = { viewModel.moveAlbum(album, up = true) },
                     onMoveDown = { viewModel.moveAlbum(album, up = false) },
+                    onRefreshFolder = { viewModel.refreshFolder(album) },
                     onDelete = { viewModel.deleteAlbum(album) }
                 )
             }
@@ -350,6 +371,71 @@ fun HomeScreen(
     }
 }
 
+/**
+ * O anki kuyruğu yatay olarak gösterir: ~2 geri + ~15 ileri. Mevcut fotoğraf
+ * vurgulanır; bir karoya dokununca o fotoğrafa atlanır.
+ */
+@Composable
+private fun QueueStrip(
+    queue: PlaylistController.Snapshot,
+    onJump: (String) -> Unit
+) {
+    val start = (queue.currentIndex - 2).coerceAtLeast(0)
+    val end = (queue.currentIndex + 15).coerceAtMost(queue.paths.lastIndex)
+    if (end < start) return
+    val window = queue.paths.subList(start, end + 1)
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp)) {
+            Text("Up next", fontWeight = FontWeight.Bold)
+            Text(
+                "Tap a photo to jump to it",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(Modifier.height(10.dp))
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                itemsIndexed(window, key = { i, _ -> start + i }) { i, path ->
+                    val absolute = start + i
+                    val isCurrent = absolute == queue.currentIndex
+                    val borderMod = if (isCurrent) {
+                        Modifier.border(3.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(10.dp))
+                    } else Modifier
+                    Box(
+                        Modifier
+                            .size(64.dp)
+                            .then(borderMod)
+                            .clip(RoundedCornerShape(10.dp))
+                            .clickable { onJump(path) }
+                    ) {
+                        AsyncImage(
+                            model = File(path),
+                            contentDescription = null,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                        if (isCurrent) {
+                            Box(
+                                Modifier
+                                    .align(Alignment.TopStart)
+                                    .padding(3.dp)
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(MaterialTheme.colorScheme.primary)
+                                    .padding(horizontal = 5.dp, vertical = 1.dp)
+                            ) {
+                                Text(
+                                    "Now",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onPrimary
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 @Composable
 private fun AlbumRow(
     album: Album,
@@ -360,6 +446,7 @@ private fun AlbumRow(
     onRename: () -> Unit,
     onMoveUp: () -> Unit,
     onMoveDown: () -> Unit,
+    onRefreshFolder: () -> Unit,
     onDelete: () -> Unit
 ) {
     var menuOpen by remember { mutableStateOf(false) }
@@ -419,6 +506,14 @@ private fun AlbumRow(
                         leadingIcon = { Icon(Icons.Filled.ArrowDownward, contentDescription = null) },
                         onClick = { menuOpen = false; onMoveDown() }
                     )
+                    // Yalnızca klasörden oluşturulmuş albümlerde: klasörü yeniden tara.
+                    if (album.folderUri != null) {
+                        DropdownMenuItem(
+                            text = { Text("Refresh folder") },
+                            leadingIcon = { Icon(Icons.Filled.Refresh, contentDescription = null) },
+                            onClick = { menuOpen = false; onRefreshFolder() }
+                        )
+                    }
                     DropdownMenuItem(
                         text = { Text("Delete") },
                         leadingIcon = { Icon(Icons.Filled.Delete, contentDescription = null) },

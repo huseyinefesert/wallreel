@@ -1,6 +1,7 @@
 package com.efesert.wallreel.data
 
 import android.content.Context
+import android.content.Intent
 import android.net.Uri
 import android.provider.OpenableColumns
 import androidx.documentfile.provider.DocumentFile
@@ -33,8 +34,21 @@ class Repository(private val context: Context) {
      */
     suspend fun createAlbumFromFolder(treeUri: Uri): Int = withContext(Dispatchers.IO) {
         val tree = DocumentFile.fromTreeUri(context, treeUri) ?: return@withContext -1
+        // Klasöre tekrar erişebilmek (yenileme) için kalıcı okuma izni al.
+        runCatching {
+            context.contentResolver.takePersistableUriPermission(
+                treeUri,
+                Intent.FLAG_GRANT_READ_URI_PERMISSION
+            )
+        }
         val name = tree.name?.takeIf { it.isNotBlank() } ?: "Folder"
-        val albumId = dao.insertAlbum(Album(name = name, position = dao.getAlbumsOnce().size))
+        val albumId = dao.insertAlbum(
+            Album(
+                name = name,
+                position = dao.getAlbumsOnce().size,
+                folderUri = treeUri.toString()
+            )
+        )
         val dir = File(context.filesDir, "albums/$albumId").apply { mkdirs() }
         var added = 0
         for (doc in tree.listFiles()) {
@@ -61,6 +75,50 @@ class Repository(private val context: Context) {
                 // tek bir resim kopyalanamazsa diğerlerine devam et
             }
         }
+        added
+    }
+
+    /**
+     * Klasörden oluşturulmuş bir albümü kaynak klasörle yeniden eşitler:
+     * klasöre eklenmiş YENİ resimleri (mevcut dosya adına göre) içe aktarır.
+     * Eklenen yeni fotoğraf sayısını döndürür (-1 = klasöre erişilemedi).
+     */
+    suspend fun refreshFolderAlbum(album: Album): Int = withContext(Dispatchers.IO) {
+        val uriStr = album.folderUri ?: return@withContext -1
+        val tree = DocumentFile.fromTreeUri(context, Uri.parse(uriStr)) ?: return@withContext -1
+        val existingNames = dao.getPhotos(album.id).mapNotNull { it.displayName }.toHashSet()
+        val dir = File(context.filesDir, "albums/${album.id}").apply { mkdirs() }
+        var nextPos = (dao.getPhotos(album.id).maxOfOrNull { it.position } ?: -1) + 1
+        var added = 0
+        for (doc in tree.listFiles()) {
+            val type = doc.type
+            if (!doc.isFile || type == null || !type.startsWith("image/")) continue
+            val docName = doc.name
+            // Zaten içe aktarılmış (aynı isimli) resimleri atla.
+            if (docName != null && existingNames.contains(docName)) continue
+            try {
+                val file = File(dir, "${UUID.randomUUID()}.jpg")
+                context.contentResolver.openInputStream(doc.uri)?.use { input ->
+                    file.outputStream().use { output -> input.copyTo(output) }
+                }
+                if (file.exists() && file.length() > 0) {
+                    dao.insertPhoto(
+                        Photo(
+                            albumId = album.id,
+                            path = file.absolutePath,
+                            displayName = docName,
+                            sourceDate = doc.lastModified(),
+                            position = nextPos++
+                        )
+                    )
+                    if (docName != null) existingNames.add(docName)
+                    added++
+                }
+            } catch (e: Exception) {
+                // tek bir resim kopyalanamazsa diğerlerine devam et
+            }
+        }
+        if (added > 0) refreshIfActive(album.id)
         added
     }
 
@@ -208,6 +266,13 @@ class Repository(private val context: Context) {
         }
         // Timer'ı yeni değişim zamanına göre yeniden kur.
         WallpaperScheduler.schedule(context)
+    }
+
+    /** Kuyruktaki belirli bir yola atlar (in-app queue önizlemesinden dokunma). */
+    suspend fun jumpToQueuePath(path: String) = withContext(Dispatchers.IO) {
+        if (PlaylistController.jumpTo(context, path)) {
+            WallpaperScheduler.schedule(context)
+        }
     }
 
     private suspend fun refreshIfActive(albumId: Long) {

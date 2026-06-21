@@ -5,16 +5,16 @@ import android.appwidget.AppWidgetProvider
 import android.content.Context
 
 /**
- * 1x1 widget. Dokununca çift dokunma ile aynı işi yapar: sıradaki fotoğrafa geçer.
- * Tıklama mantığı WidgetActionReceiver'da; bu sınıf yalnızca çizim yapar.
+ * Büyük boy widget. Önceki/sonraki fotoğraflara ek olarak shuffle ve double-tap
+ * özelliklerini açıp kapatan iki düğme gösterir. Çizim WidgetRenderer'da.
  */
-class NextPhotoWidget : AppWidgetProvider() {
+class QueueWidgetLarge : AppWidgetProvider() {
     override fun onUpdate(
         context: Context,
         appWidgetManager: AppWidgetManager,
         appWidgetIds: IntArray
     ) {
-        val views = WidgetRenderer.renderSmall(context)
+        val views = WidgetRenderer.renderLarge(context)
         for (id in appWidgetIds) appWidgetManager.updateAppWidget(id, views)
     }
 }

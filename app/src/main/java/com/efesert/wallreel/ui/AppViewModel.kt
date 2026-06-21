@@ -70,10 +70,15 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     private val _lastChangeTime = MutableStateFlow(Prefs.lastChangeTime(context))
     val lastChangeTime: StateFlow<Long> = _lastChangeTime.asStateFlow()
 
+    // O anki playlist kuyruğunun anlık görüntüsü (yollar + mevcut index).
+    private val _queue = MutableStateFlow(PlaylistController.snapshot(context))
+    val queue: StateFlow<PlaylistController.Snapshot> = _queue.asStateFlow()
+
     private val changeReceiver = object : BroadcastReceiver() {
         override fun onReceive(c: Context?, i: Intent?) {
             _currentPath.value = Prefs.currentPath(context)
             _lastChangeTime.value = Prefs.lastChangeTime(context)
+            _queue.value = PlaylistController.snapshot(context)
         }
     }
 
@@ -120,6 +125,15 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun deletePhotos(photos: List<Photo>) = viewModelScope.launch { repo.deletePhotos(photos) }
     fun setAsWallpaper(photo: Photo) = viewModelScope.launch { repo.setAsWallpaper(photo) }
     fun movePhoto(photo: Photo, up: Boolean) = viewModelScope.launch { repo.movePhoto(photo, up) }
+    fun jumpToQueue(path: String) = viewModelScope.launch { repo.jumpToQueuePath(path) }
+    fun refreshFolder(album: Album) = viewModelScope.launch {
+        _importing.value = true
+        try {
+            repo.refreshFolderAlbum(album)
+        } finally {
+            _importing.value = false
+        }
+    }
 
     // ---- Ayarlar ----
     fun setInterval(minutes: Int) {

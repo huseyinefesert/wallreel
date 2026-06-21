@@ -5,16 +5,16 @@ import android.appwidget.AppWidgetProvider
 import android.content.Context
 
 /**
- * 1x1 widget. Dokununca çift dokunma ile aynı işi yapar: sıradaki fotoğrafa geçer.
- * Tıklama mantığı WidgetActionReceiver'da; bu sınıf yalnızca çizim yapar.
+ * Orta boy widget. Bir önceki ve bir sonraki fotoğrafı gösterir; karolara
+ * dokununca geri/ileri gider. Çizim WidgetRenderer'da.
  */
-class NextPhotoWidget : AppWidgetProvider() {
+class QueueWidgetMedium : AppWidgetProvider() {
     override fun onUpdate(
         context: Context,
         appWidgetManager: AppWidgetManager,
         appWidgetIds: IntArray
     ) {
-        val views = WidgetRenderer.renderSmall(context)
+        val views = WidgetRenderer.renderMedium(context)
         for (id in appWidgetIds) appWidgetManager.updateAppWidget(id, views)
     }
 }
