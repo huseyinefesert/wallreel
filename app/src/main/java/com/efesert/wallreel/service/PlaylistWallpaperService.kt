@@ -52,7 +52,7 @@ class PlaylistWallpaperService : WallpaperService() {
             // Boş kuyrukta sıkı döngüyü önlemek için sonrakini tam aralık sonrasına kur.
             timerHandler.removeCallbacks(this@PlaylistEngine.advanceRunnable)
             val minutes = Prefs.intervalMinutes(this@PlaylistWallpaperService)
-            if (minutes > 0) {
+            if (minutes > 0 && !Prefs.timerPaused(this@PlaylistWallpaperService)) {
                 timerHandler.postDelayed(this@PlaylistEngine.advanceRunnable, minutes * 60_000L)
             }
         }
@@ -114,14 +114,8 @@ class PlaylistWallpaperService : WallpaperService() {
         private fun scheduleNextTick() {
             timerHandler.removeCallbacks(advanceRunnable)
             val minutes = Prefs.intervalMinutes(this@PlaylistWallpaperService)
-            if (minutes <= 0) return
-            val intervalMs = minutes * 60_000L
-            val last = Prefs.lastChangeTime(this@PlaylistWallpaperService)
-            val delay = if (last <= 0L) {
-                intervalMs
-            } else {
-                (intervalMs - (System.currentTimeMillis() - last)).coerceIn(0L, intervalMs)
-            }
+            if (minutes <= 0 || Prefs.timerPaused(this@PlaylistWallpaperService)) return
+            val delay = Prefs.timerRemainingMillis(this@PlaylistWallpaperService)
             timerHandler.postDelayed(advanceRunnable, delay)
         }
 

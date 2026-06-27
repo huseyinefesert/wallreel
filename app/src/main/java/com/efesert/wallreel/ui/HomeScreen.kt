@@ -32,10 +32,13 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PhotoLibrary
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -95,6 +98,8 @@ fun HomeScreen(
     val context = LocalContext.current
     val albums by viewModel.albums.collectAsState()
     val interval by viewModel.intervalMinutes.collectAsState()
+    val timerPaused by viewModel.timerPaused.collectAsState()
+    val timerRemainingMillis by viewModel.timerRemainingMillis.collectAsState()
     val shuffle by viewModel.shuffle.collectAsState()
     val doubleTap by viewModel.doubleTapEnabled.collectAsState()
     val queue by viewModel.queue.collectAsState()
@@ -156,6 +161,28 @@ fun HomeScreen(
                                     val custom = intervalOptions.none { it.minutes == interval }
                                     Text(if (custom) "Custom: $interval min" else "Custom")
                                 }
+                            )
+                        }
+
+                        Spacer(Modifier.height(12.dp))
+                        Button(
+                            onClick = {
+                                if (timerPaused) viewModel.resumeTimer() else viewModel.pauseTimer()
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(
+                                if (timerPaused) Icons.Filled.PlayArrow else Icons.Filled.Pause,
+                                contentDescription = null
+                            )
+                            Text(if (timerPaused) "  Continue timer" else "  Pause timer")
+                        }
+                        if (timerPaused) {
+                            Text(
+                                "Paused with ${formatDuration(timerRemainingMillis)} left",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(top = 4.dp)
                             )
                         }
 
@@ -368,6 +395,24 @@ fun HomeScreen(
                 TextButton(onClick = { showCustomInterval = false }) { Text("Cancel") }
             }
         )
+    }
+}
+
+private fun formatDuration(millis: Long): String {
+    val totalMinutes = (millis / 60_000L).coerceAtLeast(0L)
+    return when {
+        totalMinutes < 1 -> "less than 1 min"
+        totalMinutes < 60 -> "$totalMinutes min"
+        totalMinutes < 1440 -> {
+            val h = totalMinutes / 60
+            val m = totalMinutes % 60
+            if (m == 0L) "$h h" else "$h h $m min"
+        }
+        else -> {
+            val d = totalMinutes / 1440
+            val h = (totalMinutes % 1440) / 60
+            if (h == 0L) "$d d" else "$d d $h h"
+        }
     }
 }
 

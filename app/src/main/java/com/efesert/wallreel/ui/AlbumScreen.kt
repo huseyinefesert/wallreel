@@ -1,5 +1,8 @@
 package com.efesert.wallreel.ui
 
+import android.content.Context
+import android.content.Intent
+import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -33,6 +36,7 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material.icons.filled.SwapVert
 import androidx.compose.material.icons.filled.Wallpaper
 import androidx.compose.material3.AlertDialog
@@ -72,6 +76,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
+import androidx.core.content.FileProvider
 import com.efesert.wallreel.data.Photo
 import com.efesert.wallreel.data.PhotoSort
 import com.efesert.wallreel.data.ScaleMode
@@ -393,6 +398,7 @@ fun AlbumScreen(
                 viewModel.setAsWallpaper(target)
                 photoForScale = null
             },
+            onOpenExternal = { openPhotoInGallery(context, target) },
             onDelete = {
                 viewModel.deletePhoto(target)
                 photoForScale = null
@@ -567,6 +573,7 @@ private fun PhotoScaleDialog(
     onDismiss: () -> Unit,
     onPick: (String) -> Unit,
     onSetWallpaper: () -> Unit,
+    onOpenExternal: () -> Unit,
     onDelete: () -> Unit
 ) {
     val options = listOf(
@@ -663,6 +670,14 @@ private fun PhotoScaleDialog(
                     Icon(Icons.Filled.Wallpaper, contentDescription = null)
                     Text("  Set as wallpaper now")
                 }
+                Spacer(Modifier.height(8.dp))
+                OutlinedButton(
+                    onClick = onOpenExternal,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(Icons.Filled.OpenInNew, contentDescription = null)
+                    Text("  Open in gallery")
+                }
             }
         },
         confirmButton = {
@@ -674,4 +689,27 @@ private fun PhotoScaleDialog(
             TextButton(onClick = onDismiss) { Text("Close") }
         }
     )
+}
+
+private fun openPhotoInGallery(context: Context, photo: Photo) {
+    val file = File(photo.path)
+    if (!file.exists()) {
+        Toast.makeText(context, "Photo file not found", Toast.LENGTH_SHORT).show()
+        return
+    }
+
+    val uri = FileProvider.getUriForFile(
+        context,
+        "${context.packageName}.fileprovider",
+        file
+    )
+    val intent = Intent(Intent.ACTION_VIEW).apply {
+        setDataAndType(uri, "image/*")
+        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+    }
+    runCatching {
+        context.startActivity(intent)
+    }.onFailure {
+        Toast.makeText(context, "No gallery app found", Toast.LENGTH_SHORT).show()
+    }
 }

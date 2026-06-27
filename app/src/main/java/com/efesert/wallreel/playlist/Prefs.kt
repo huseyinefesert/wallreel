@@ -16,6 +16,8 @@ object Prefs {
     private const val KEY_CURRENT_PATH = "current_path"
     private const val KEY_CURRENT_SCALE = "current_scale"
     private const val KEY_LAST_CHANGE = "last_change_time"
+    private const val KEY_TIMER_PAUSED = "timer_paused"
+    private const val KEY_TIMER_REMAINING = "timer_remaining_ms"
     private const val KEY_DOUBLE_TAP = "double_tap_enabled"
     private const val KEY_SORT = "photo_sort"
 
@@ -26,8 +28,17 @@ object Prefs {
     fun intervalMinutes(context: Context): Int =
         prefs(context).getInt(KEY_INTERVAL, 60)
 
-    fun setIntervalMinutes(context: Context, minutes: Int) =
-        prefs(context).edit().putInt(KEY_INTERVAL, minutes).apply()
+    fun setIntervalMinutes(context: Context, minutes: Int) {
+        val intervalMs = minutes * 60_000L
+        val editor = prefs(context).edit().putInt(KEY_INTERVAL, minutes)
+        if (timerPaused(context)) {
+            editor.putLong(
+                KEY_TIMER_REMAINING,
+                timerPausedRemainingMillis(context).coerceIn(0L, intervalMs)
+            )
+        }
+        editor.apply()
+    }
 
     // Shuffle açık/kapalı.
     fun shuffle(context: Context): Boolean =
@@ -65,6 +76,9 @@ object Prefs {
         // (Yalnızca scale değişiminde sayaç sıfırlanmaz.)
         if (path != null && path != previous) {
             editor.putLong(KEY_LAST_CHANGE, System.currentTimeMillis())
+            if (timerPaused(context)) {
+                editor.putLong(KEY_TIMER_REMAINING, intervalMillis(context))
+            }
         }
         editor.apply()
     }
@@ -74,8 +88,56 @@ object Prefs {
         prefs(context).getLong(KEY_LAST_CHANGE, 0L)
 
     // Değişim zamanını "şimdi" olarak işaretle (timer'ı sıfırlamak için).
-    fun markChangedNow(context: Context) =
-        prefs(context).edit().putLong(KEY_LAST_CHANGE, System.currentTimeMillis()).apply()
+    fun markChangedNow(context: Context) {
+        val editor = prefs(context).edit().putLong(KEY_LAST_CHANGE, System.currentTimeMillis())
+        if (timerPaused(context)) {
+            editor.putLong(KEY_TIMER_REMAINING, intervalMillis(context))
+        }
+        editor.apply()
+    }
+
+    fun intervalMillis(context: Context): Long =
+        intervalMinutes(context) * 60_000L
+
+    fun timerPaused(context: Context): Boolean =
+        prefs(context).getBoolean(KEY_TIMER_PAUSED, false)
+
+    fun timerPausedRemainingMillis(context: Context): Long =
+        prefs(context).getLong(KEY_TIMER_REMAINING, intervalMillis(context))
+
+    fun timerRemainingMillis(context: Context): Long {
+        val intervalMs = intervalMillis(context)
+        if (intervalMs <= 0L) return 0L
+        if (timerPaused(context)) {
+            return timerPausedRemainingMillis(context).coerceIn(0L, intervalMs)
+        }
+        val last = lastChangeTime(context)
+        return if (last > 0L) {
+            (intervalMs - (System.currentTimeMillis() - last)).coerceIn(0L, intervalMs)
+        } else {
+            intervalMs
+        }
+    }
+
+    fun pauseTimer(context: Context): Long {
+        val remaining = timerRemainingMillis(context)
+        prefs(context).edit()
+            .putBoolean(KEY_TIMER_PAUSED, true)
+            .putLong(KEY_TIMER_REMAINING, remaining)
+            .apply()
+        return remaining
+    }
+
+    fun resumeTimer(context: Context) {
+        val intervalMs = intervalMillis(context)
+        val remaining = timerPausedRemainingMillis(context).coerceIn(0L, intervalMs)
+        val elapsed = intervalMs - remaining
+        prefs(context).edit()
+            .putBoolean(KEY_TIMER_PAUSED, false)
+            .remove(KEY_TIMER_REMAINING)
+            .putLong(KEY_LAST_CHANGE, System.currentTimeMillis() - elapsed)
+            .apply()
+    }
 
     // Ana ekrandaki çift dokunma ile fotoğraf değiştirme açık mı? Varsayılan açık.
     fun doubleTapEnabled(context: Context): Boolean =

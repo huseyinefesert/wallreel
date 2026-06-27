@@ -32,17 +32,11 @@ object WallpaperScheduler {
         val minutes = Prefs.intervalMinutes(context)
         val am = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
         val pi = pendingIntent(context)
-        if (minutes <= 0) {
+        if (minutes <= 0 || Prefs.timerPaused(context)) {
             am.cancel(pi)
             return
         }
-        val intervalMs = minutes * 60_000L
-        val last = Prefs.lastChangeTime(context)
-        val remaining = if (last > 0L) {
-            (intervalMs - (System.currentTimeMillis() - last)).coerceIn(0L, intervalMs)
-        } else {
-            intervalMs
-        }
+        val remaining = Prefs.timerRemainingMillis(context)
         val triggerAt = SystemClock.elapsedRealtime() + remaining
         am.setAndAllowWhileIdle(AlarmManager.ELAPSED_REALTIME_WAKEUP, triggerAt, pi)
     }

@@ -34,6 +34,12 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     private val _intervalMinutes = MutableStateFlow(Prefs.intervalMinutes(context))
     val intervalMinutes: StateFlow<Int> = _intervalMinutes.asStateFlow()
 
+    private val _timerPaused = MutableStateFlow(Prefs.timerPaused(context))
+    val timerPaused: StateFlow<Boolean> = _timerPaused.asStateFlow()
+
+    private val _timerRemainingMillis = MutableStateFlow(Prefs.timerRemainingMillis(context))
+    val timerRemainingMillis: StateFlow<Long> = _timerRemainingMillis.asStateFlow()
+
     private val _shuffle = MutableStateFlow(Prefs.shuffle(context))
     val shuffle: StateFlow<Boolean> = _shuffle.asStateFlow()
 
@@ -78,6 +84,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         override fun onReceive(c: Context?, i: Intent?) {
             _currentPath.value = Prefs.currentPath(context)
             _lastChangeTime.value = Prefs.lastChangeTime(context)
+            _timerPaused.value = Prefs.timerPaused(context)
+            _timerRemainingMillis.value = Prefs.timerRemainingMillis(context)
             _queue.value = PlaylistController.snapshot(context)
         }
     }
@@ -139,12 +147,37 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun setInterval(minutes: Int) {
         _intervalMinutes.value = minutes
         Prefs.setIntervalMinutes(context, minutes)
+        _timerRemainingMillis.value = Prefs.timerRemainingMillis(context)
+        if (Prefs.timerPaused(context)) {
+            WallpaperScheduler.cancel(context)
+        } else {
+            WallpaperScheduler.schedule(context)
+        }
+        notifyWallpaperStateChanged()
+    }
+
+    fun pauseTimer() {
+        _timerRemainingMillis.value = Prefs.pauseTimer(context)
+        _timerPaused.value = true
+        WallpaperScheduler.cancel(context)
+        notifyWallpaperStateChanged()
+    }
+
+    fun resumeTimer() {
+        Prefs.resumeTimer(context)
+        _timerPaused.value = false
+        _timerRemainingMillis.value = Prefs.timerRemainingMillis(context)
         WallpaperScheduler.schedule(context)
+        notifyWallpaperStateChanged()
     }
 
     fun setShuffle(value: Boolean) = viewModelScope.launch {
         _shuffle.value = value
         Prefs.setShuffle(context, value)
         repo.refreshQueue()
+    }
+
+    private fun notifyWallpaperStateChanged() {
+        context.sendBroadcast(Intent(PlaylistController.ACTION_CHANGED).setPackage(context.packageName))
     }
 }

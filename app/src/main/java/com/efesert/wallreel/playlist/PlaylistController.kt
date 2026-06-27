@@ -72,12 +72,11 @@ object PlaylistController {
      * zaman doğrudan advance() kullanır.
      */
     fun advanceIfDue(context: Context): Boolean {
+        if (Prefs.timerPaused(context)) return false
         val minutes = Prefs.intervalMinutes(context)
         if (minutes <= 0) return false
-        val intervalMs = minutes * 60_000L
-        val last = Prefs.lastChangeTime(context)
         // 2 sn tolerans: alarm birkaç ms erken tetiklenirse yine de "dolmuş" say.
-        if (last > 0L && System.currentTimeMillis() - last < intervalMs - 2_000L) {
+        if (Prefs.timerRemainingMillis(context) > 2_000L) {
             return false
         }
         advance(context)
