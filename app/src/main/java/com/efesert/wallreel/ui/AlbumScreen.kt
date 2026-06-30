@@ -37,6 +37,7 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.OpenInNew
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SwapVert
 import androidx.compose.material.icons.filled.Wallpaper
 import androidx.compose.material3.AlertDialog
@@ -50,6 +51,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SegmentedButton
@@ -97,6 +99,7 @@ fun AlbumScreen(
         .collectAsState(initial = emptyList())
 
     var photoForScale by remember { mutableStateOf<Photo?>(null) }
+    var searchQuery by remember { mutableStateOf("") }
 
     // ---- Çoklu seçim modu ----
     var selectionMode by remember { mutableStateOf(false) }
@@ -128,7 +131,17 @@ fun AlbumScreen(
     // Fotoğraf sıralama modu. Gösterim sırasını ve (shuffle kapalıyken) kuyruğu belirler.
     val sortMode by viewModel.photoSort.collectAsState()
     var sortMenuOpen by remember { mutableStateOf(false) }
-    val displayPhotos = remember(photos, sortMode) { PhotoSort.sort(photos, sortMode) }
+    val sortedPhotos = remember(photos, sortMode) { PhotoSort.sort(photos, sortMode) }
+    val displayPhotos = remember(sortedPhotos, searchQuery) {
+        val q = searchQuery.trim()
+        if (q.isBlank()) {
+            sortedPhotos
+        } else {
+            sortedPhotos.filter { photo ->
+                photoDisplayName(photo).contains(q, ignoreCase = true)
+            }
+        }
+    }
 
     // "X dakika önce" yazısının zamanla ilerlemesi için her 30 sn'de bir "şimdi"yi tazele.
     var now by remember { mutableStateOf(System.currentTimeMillis()) }
@@ -350,27 +363,47 @@ fun AlbumScreen(
                     )
                 }
             } else {
-                LazyVerticalGrid(
-                    state = gridState,
-                    columns = GridCells.Fixed(3),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    items(displayPhotos, key = { it.id }) { photo ->
-                        PhotoCell(
-                            photo = photo,
-                            isCurrent = photo.path == currentPath,
-                            selectionMode = selectionMode,
-                            selected = selectedIds.contains(photo.id),
-                            onClick = {
-                                if (selectionMode) toggleSelection(photo.id)
-                                else photoForScale = photo
-                            },
-                            onLongClick = {
-                                if (!selectionMode) selectionMode = true
-                                toggleSelection(photo.id)
-                            }
+                if (!selectionMode) {
+                    OutlinedTextField(
+                        value = searchQuery,
+                        onValueChange = { searchQuery = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
+                        label = { Text("Search by file name") }
+                    )
+                    Spacer(Modifier.height(8.dp))
+                }
+                if (displayPhotos.isEmpty()) {
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Text(
+                            "No photos match this search.",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
+                    }
+                } else {
+                    LazyVerticalGrid(
+                        state = gridState,
+                        columns = GridCells.Fixed(3),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        items(displayPhotos, key = { it.id }) { photo ->
+                            PhotoCell(
+                                photo = photo,
+                                isCurrent = photo.path == currentPath,
+                                selectionMode = selectionMode,
+                                selected = selectedIds.contains(photo.id),
+                                onClick = {
+                                    if (selectionMode) toggleSelection(photo.id)
+                                    else photoForScale = photo
+                                },
+                                onLongClick = {
+                                    if (!selectionMode) selectionMode = true
+                                    toggleSelection(photo.id)
+                                }
+                            )
+                        }
                     }
                 }
             }
@@ -381,7 +414,7 @@ fun AlbumScreen(
     if (target != null) {
         // Manuel taşıma yalnızca Custom sıralama modunda mümkün.
         val customOrder = sortMode == PhotoSort.CUSTOM
-        val idx = displayPhotos.indexOfFirst { it.id == target.id }
+        val idx = sortedPhotos.indexOfFirst { it.id == target.id }
         PhotoScaleDialog(
             photo = target,
             customOrder = customOrder,

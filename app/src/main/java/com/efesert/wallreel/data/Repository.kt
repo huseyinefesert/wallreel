@@ -153,6 +153,13 @@ class Repository(private val context: Context) {
         refreshQueue()
     }
 
+    suspend fun setActiveAlbum(albumId: Long) = withContext(Dispatchers.IO) {
+        if (dao.getAlbumById(albumId) == null) return@withContext
+        dao.clearActiveFlags()
+        dao.setActiveFlag(albumId)
+        refreshQueue()
+    }
+
     suspend fun setAlbumScale(album: Album, scaleMode: String) = withContext(Dispatchers.IO) {
         dao.updateAlbum(album.copy(scaleMode = scaleMode))
         // Sırayı/konumu bozmadan sadece scale'leri güncelle.

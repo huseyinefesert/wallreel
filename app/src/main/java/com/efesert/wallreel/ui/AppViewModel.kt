@@ -15,6 +15,7 @@ import com.efesert.wallreel.data.Repository
 import com.efesert.wallreel.playlist.PlaylistController
 import com.efesert.wallreel.playlist.Prefs
 import com.efesert.wallreel.scheduler.WallpaperScheduler
+import com.efesert.wallreel.widget.WidgetRenderer
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -86,6 +87,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             _lastChangeTime.value = Prefs.lastChangeTime(context)
             _timerPaused.value = Prefs.timerPaused(context)
             _timerRemainingMillis.value = Prefs.timerRemainingMillis(context)
+            _shuffle.value = Prefs.shuffle(context)
             _queue.value = PlaylistController.snapshot(context)
         }
     }
@@ -111,7 +113,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun observePhotos(albumId: Long): Flow<List<Photo>> = repo.observePhotos(albumId)
 
     // ---- Albüm işlemleri ----
-    fun createAlbum(name: String) = viewModelScope.launch { repo.createAlbum(name) }
+    fun createAlbum(name: String) = viewModelScope.launch {
+        repo.createAlbum(name)
+        WidgetRenderer.updateAll(context)
+    }
     fun addFolder(treeUri: android.net.Uri) = viewModelScope.launch {
         _importing.value = true
         try {
@@ -119,11 +124,24 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         } finally {
             _importing.value = false
         }
+        WidgetRenderer.updateAll(context)
     }
-    fun renameAlbum(album: Album, name: String) = viewModelScope.launch { repo.renameAlbum(album, name) }
-    fun moveAlbum(album: Album, up: Boolean) = viewModelScope.launch { repo.moveAlbum(album, up) }
-    fun deleteAlbum(album: Album) = viewModelScope.launch { repo.deleteAlbum(album) }
-    fun setActiveAlbum(album: Album) = viewModelScope.launch { repo.setActiveAlbum(album) }
+    fun renameAlbum(album: Album, name: String) = viewModelScope.launch {
+        repo.renameAlbum(album, name)
+        WidgetRenderer.updateAll(context)
+    }
+    fun moveAlbum(album: Album, up: Boolean) = viewModelScope.launch {
+        repo.moveAlbum(album, up)
+        WidgetRenderer.updateAll(context)
+    }
+    fun deleteAlbum(album: Album) = viewModelScope.launch {
+        repo.deleteAlbum(album)
+        WidgetRenderer.updateAll(context)
+    }
+    fun setActiveAlbum(album: Album) = viewModelScope.launch {
+        repo.setActiveAlbum(album)
+        WidgetRenderer.updateAll(context)
+    }
     fun setAlbumScale(album: Album, scale: String) = viewModelScope.launch { repo.setAlbumScale(album, scale) }
 
     // ---- Fotoğraf işlemleri ----
@@ -175,6 +193,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         _shuffle.value = value
         Prefs.setShuffle(context, value)
         repo.refreshQueue()
+        WidgetRenderer.updateAll(context)
     }
 
     private fun notifyWallpaperStateChanged() {

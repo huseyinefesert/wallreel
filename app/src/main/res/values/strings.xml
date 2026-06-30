@@ -5,6 +5,10 @@
     <string name="widget_next_desc">WallReel: next photo</string>
     <string name="widget_medium_desc">WallReel: previous and next photo</string>
     <string name="widget_large_desc">WallReel: photos, shuffle and double-tap controls</string>
+    <string name="widget_quick_controls_desc">WallReel: quick wallpaper controls</string>
     <string name="widget_prev_label">‹ Prev</string>
     <string name="widget_next_label">Next ›</string>
+    <string name="widget_quick_next_label">Next</string>
+    <string name="widget_quick_shuffle_label">Shuffle</string>
+    <string name="widget_quick_album_empty">Album -</string>
 </resources>

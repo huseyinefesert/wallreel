@@ -26,6 +26,10 @@ class WidgetActionReceiver : BroadcastReceiver() {
                 when (action) {
                     WidgetRenderer.ACTION_NEXT -> PlaylistController.advance(app)
                     WidgetRenderer.ACTION_PREV -> PlaylistController.previous(app)
+                    WidgetRenderer.ACTION_SET_ACTIVE_ALBUM -> {
+                        val albumId = intent.getLongExtra(WidgetRenderer.EXTRA_ALBUM_ID, -1L)
+                        if (albumId > 0L) Repository(app).setActiveAlbum(albumId)
+                    }
                     WidgetRenderer.ACTION_DOUBLETAP ->
                         Prefs.setDoubleTapEnabled(app, !Prefs.doubleTapEnabled(app))
                     WidgetRenderer.ACTION_SHUFFLE -> {

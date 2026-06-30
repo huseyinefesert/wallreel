@@ -23,6 +23,9 @@ interface AppDao {
     @Query("SELECT * FROM albums WHERE id = :id LIMIT 1")
     fun observeAlbum(id: Long): Flow<Album?>
 
+    @Query("SELECT * FROM albums WHERE id = :id LIMIT 1")
+    suspend fun getAlbumById(id: Long): Album?
+
     @Insert
     suspend fun insertAlbum(album: Album): Long
 

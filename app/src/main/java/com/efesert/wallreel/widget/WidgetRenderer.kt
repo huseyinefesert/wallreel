@@ -7,9 +7,13 @@ import android.content.Context
 import android.content.Intent
 import android.widget.RemoteViews
 import com.efesert.wallreel.R
+import com.efesert.wallreel.data.Album
+import com.efesert.wallreel.data.AppDatabase
 import com.efesert.wallreel.playlist.PlaylistController
 import com.efesert.wallreel.playlist.Prefs
 import com.efesert.wallreel.service.BitmapUtils
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.runBlocking
 
 /**
  * Tüm widget boyutlarının (1x1 / orta / büyük) çizimini ve güncellenmesini tek
@@ -21,6 +25,8 @@ object WidgetRenderer {
     const val ACTION_PREV = "com.efesert.wallreel.WIDGET_PREV"
     const val ACTION_SHUFFLE = "com.efesert.wallreel.WIDGET_SHUFFLE"
     const val ACTION_DOUBLETAP = "com.efesert.wallreel.WIDGET_DOUBLETAP"
+    const val ACTION_SET_ACTIVE_ALBUM = "com.efesert.wallreel.WIDGET_SET_ACTIVE_ALBUM"
+    const val EXTRA_ALBUM_ID = "album_id"
 
     private val DARK = 0xFF0E0E19.toInt()
     private val LIGHT = 0xFFFFFFFF.toInt()
@@ -31,6 +37,7 @@ object WidgetRenderer {
         updateProvider(context, mgr, NextPhotoWidget::class.java) { renderSmall(context) }
         updateProvider(context, mgr, QueueWidgetMedium::class.java) { renderMedium(context) }
         updateProvider(context, mgr, QueueWidgetLarge::class.java) { renderLarge(context) }
+        updateProvider(context, mgr, QuickControlsWidget::class.java) { renderQuickControls(context) }
     }
 
     private inline fun updateProvider(
@@ -79,6 +86,24 @@ object WidgetRenderer {
         return views
     }
 
+    fun renderQuickControls(context: Context): RemoteViews {
+        val views = RemoteViews(context.packageName, R.layout.widget_quick_controls)
+        views.setOnClickPendingIntent(R.id.quick_next_btn, action(context, ACTION_NEXT))
+
+        val shuffleOn = Prefs.shuffle(context)
+        bindToggle(views, R.id.quick_shuffle_btn, "Shuffle\n" + onOff(shuffleOn), shuffleOn)
+        views.setOnClickPendingIntent(R.id.quick_shuffle_btn, action(context, ACTION_SHUFFLE))
+
+        val albums = runCatching {
+            runBlocking(Dispatchers.IO) {
+                AppDatabase.get(context).dao().getAlbumsOnce().take(2)
+            }
+        }.getOrDefault(emptyList())
+        bindAlbumShortcut(context, views, R.id.quick_album_one_btn, albums.getOrNull(0))
+        bindAlbumShortcut(context, views, R.id.quick_album_two_btn, albums.getOrNull(1))
+        return views
+    }
+
     private fun onOff(on: Boolean) = if (on) "On" else "Off"
 
     private fun bindToggle(views: RemoteViews, viewId: Int, text: String, on: Boolean) {
@@ -88,6 +113,20 @@ object WidgetRenderer {
             if (on) R.drawable.widget_btn_on else R.drawable.widget_btn_off
         )
         views.setTextColor(viewId, if (on) DARK else LIGHT)
+    }
+
+    private fun bindAlbumShortcut(
+        context: Context,
+        views: RemoteViews,
+        viewId: Int,
+        album: Album?
+    ) {
+        if (album == null) {
+            bindToggle(views, viewId, "Album\n-", false)
+            return
+        }
+        bindToggle(views, viewId, album.name, album.isActive)
+        views.setOnClickPendingIntent(viewId, albumAction(context, album.id))
     }
 
     // Widget bitmap'leri RemoteViews binder işlemine sığmalı (~1MB). Bu yüzden
@@ -134,6 +173,18 @@ object WidgetRenderer {
         return PendingIntent.getBroadcast(
             context,
             actionName.hashCode(),
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+    }
+
+    private fun albumAction(context: Context, albumId: Long): PendingIntent {
+        val intent = Intent(context, WidgetActionReceiver::class.java)
+            .setAction(ACTION_SET_ACTIVE_ALBUM)
+            .putExtra(EXTRA_ALBUM_ID, albumId)
+        return PendingIntent.getBroadcast(
+            context,
+            (ACTION_SET_ACTIVE_ALBUM + albumId).hashCode(),
             intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
