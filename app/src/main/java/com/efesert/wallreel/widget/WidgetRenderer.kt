@@ -9,6 +9,7 @@ import android.widget.RemoteViews
 import com.efesert.wallreel.R
 import com.efesert.wallreel.data.Album
 import com.efesert.wallreel.data.AppDatabase
+import com.efesert.wallreel.data.ScaleMode
 import com.efesert.wallreel.playlist.PlaylistController
 import com.efesert.wallreel.playlist.Prefs
 import com.efesert.wallreel.service.BitmapUtils
@@ -26,7 +27,9 @@ object WidgetRenderer {
     const val ACTION_SHUFFLE = "com.efesert.wallreel.WIDGET_SHUFFLE"
     const val ACTION_DOUBLETAP = "com.efesert.wallreel.WIDGET_DOUBLETAP"
     const val ACTION_SET_ACTIVE_ALBUM = "com.efesert.wallreel.WIDGET_SET_ACTIVE_ALBUM"
+    const val ACTION_SET_CURRENT_SCALE = "com.efesert.wallreel.WIDGET_SET_CURRENT_SCALE"
     const val EXTRA_ALBUM_ID = "album_id"
+    const val EXTRA_SCALE_MODE = "scale_mode"
 
     private val DARK = 0xFF0E0E19.toInt()
     private val LIGHT = 0xFFFFFFFF.toInt()
@@ -101,6 +104,18 @@ object WidgetRenderer {
         }.getOrDefault(emptyList())
         bindAlbumShortcut(context, views, R.id.quick_album_one_btn, albums.getOrNull(0))
         bindAlbumShortcut(context, views, R.id.quick_album_two_btn, albums.getOrNull(1))
+
+        val currentScale = Prefs.currentScale(context)
+        bindToggle(views, R.id.quick_fill_btn, "Fill", currentScale == ScaleMode.FILL)
+        views.setOnClickPendingIntent(
+            R.id.quick_fill_btn,
+            scaleAction(context, ScaleMode.FILL)
+        )
+        bindToggle(views, R.id.quick_fit_btn, "Fit", currentScale == ScaleMode.FIT)
+        views.setOnClickPendingIntent(
+            R.id.quick_fit_btn,
+            scaleAction(context, ScaleMode.FIT)
+        )
         return views
     }
 
@@ -185,6 +200,18 @@ object WidgetRenderer {
         return PendingIntent.getBroadcast(
             context,
             (ACTION_SET_ACTIVE_ALBUM + albumId).hashCode(),
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+    }
+
+    private fun scaleAction(context: Context, scaleMode: String): PendingIntent {
+        val intent = Intent(context, WidgetActionReceiver::class.java)
+            .setAction(ACTION_SET_CURRENT_SCALE)
+            .putExtra(EXTRA_SCALE_MODE, scaleMode)
+        return PendingIntent.getBroadcast(
+            context,
+            (ACTION_SET_CURRENT_SCALE + scaleMode).hashCode(),
             intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )

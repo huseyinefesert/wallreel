@@ -48,6 +48,9 @@ interface AppDao {
     @Query("SELECT * FROM photos WHERE albumId = :albumId ORDER BY position ASC, addedAt ASC, id ASC")
     suspend fun getPhotos(albumId: Long): List<Photo>
 
+    @Query("SELECT * FROM photos WHERE path = :path LIMIT 1")
+    suspend fun getPhotoByPath(path: String): Photo?
+
     @Insert
     suspend fun insertPhoto(photo: Photo): Long
 

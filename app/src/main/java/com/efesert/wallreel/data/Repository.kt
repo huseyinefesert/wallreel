@@ -238,6 +238,18 @@ class Repository(private val context: Context) {
         if (dao.getActiveAlbum()?.id == photo.albumId) reapplyScales()
     }
 
+    suspend fun setCurrentWallpaperScale(scaleMode: String) = withContext(Dispatchers.IO) {
+        if (scaleMode != ScaleMode.FILL && scaleMode != ScaleMode.FIT) return@withContext
+        val path = Prefs.currentPath(context) ?: return@withContext
+        val photo = dao.getPhotoByPath(path) ?: return@withContext
+        dao.updatePhoto(photo.copy(scaleMode = scaleMode))
+        if (dao.getActiveAlbum()?.id == photo.albumId) {
+            reapplyScales()
+        } else {
+            PlaylistController.updateScales(context, mapOf(path to scaleMode))
+        }
+    }
+
     suspend fun deletePhoto(photo: Photo) = withContext(Dispatchers.IO) {
         runCatching { File(photo.path).delete() }
         dao.deletePhoto(photo)

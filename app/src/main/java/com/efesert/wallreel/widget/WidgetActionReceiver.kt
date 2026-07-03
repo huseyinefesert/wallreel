@@ -4,6 +4,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import com.efesert.wallreel.data.Repository
+import com.efesert.wallreel.data.ScaleMode
 import com.efesert.wallreel.playlist.PlaylistController
 import com.efesert.wallreel.playlist.Prefs
 import kotlinx.coroutines.CoroutineScope
@@ -29,6 +30,12 @@ class WidgetActionReceiver : BroadcastReceiver() {
                     WidgetRenderer.ACTION_SET_ACTIVE_ALBUM -> {
                         val albumId = intent.getLongExtra(WidgetRenderer.EXTRA_ALBUM_ID, -1L)
                         if (albumId > 0L) Repository(app).setActiveAlbum(albumId)
+                    }
+                    WidgetRenderer.ACTION_SET_CURRENT_SCALE -> {
+                        val scaleMode = intent.getStringExtra(WidgetRenderer.EXTRA_SCALE_MODE)
+                        if (scaleMode == ScaleMode.FILL || scaleMode == ScaleMode.FIT) {
+                            Repository(app).setCurrentWallpaperScale(scaleMode)
+                        }
                     }
                     WidgetRenderer.ACTION_DOUBLETAP ->
                         Prefs.setDoubleTapEnabled(app, !Prefs.doubleTapEnabled(app))

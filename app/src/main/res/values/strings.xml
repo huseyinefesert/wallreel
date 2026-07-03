@@ -11,4 +11,6 @@
     <string name="widget_quick_next_label">Next</string>
     <string name="widget_quick_shuffle_label">Shuffle</string>
     <string name="widget_quick_album_empty">Album -</string>
+    <string name="widget_quick_fill_label">Fill</string>
+    <string name="widget_quick_fit_label">Fit</string>
 </resources>

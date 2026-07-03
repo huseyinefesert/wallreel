@@ -64,4 +64,42 @@
         android:text="@string/widget_quick_album_empty"
         android:textColor="#FFFFFF"
         android:textSize="12sp" />
+
+    <LinearLayout
+        android:id="@+id/quick_scale_cell"
+        android:layout_width="0dp"
+        android:layout_height="match_parent"
+        android:layout_marginStart="6dp"
+        android:layout_weight="1"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/quick_fill_btn"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:background="@drawable/widget_btn_off"
+            android:ellipsize="end"
+            android:gravity="center"
+            android:maxLines="1"
+            android:paddingHorizontal="2dp"
+            android:text="@string/widget_quick_fill_label"
+            android:textColor="#FFFFFF"
+            android:textSize="11sp" />
+
+        <TextView
+            android:id="@+id/quick_fit_btn"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_marginTop="4dp"
+            android:layout_weight="1"
+            android:background="@drawable/widget_btn_off"
+            android:ellipsize="end"
+            android:gravity="center"
+            android:maxLines="1"
+            android:paddingHorizontal="2dp"
+            android:text="@string/widget_quick_fit_label"
+            android:textColor="#FFFFFF"
+            android:textSize="11sp" />
+    </LinearLayout>
 </LinearLayout>
