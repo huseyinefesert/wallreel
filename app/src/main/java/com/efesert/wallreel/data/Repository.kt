@@ -80,19 +80,38 @@ class Repository(private val context: Context) {
 
     /**
      * Klasörden oluşturulmuş bir albümü kaynak klasörle yeniden eşitler:
-     * klasöre eklenmiş YENİ resimleri (mevcut dosya adına göre) içe aktarır.
+     * kaynak klasörden silinen resimleri albümden kaldırır, yeni resimleri içe aktarır.
      * Eklenen yeni fotoğraf sayısını döndürür (-1 = klasöre erişilemedi).
      */
     suspend fun refreshFolderAlbum(album: Album): Int = withContext(Dispatchers.IO) {
         val uriStr = album.folderUri ?: return@withContext -1
         val tree = DocumentFile.fromTreeUri(context, Uri.parse(uriStr)) ?: return@withContext -1
-        val existingNames = dao.getPhotos(album.id).mapNotNull { it.displayName }.toHashSet()
+        val existingPhotos = dao.getPhotos(album.id)
+        val existingNames = existingPhotos.mapNotNull { it.displayName }.toHashSet()
         val dir = File(context.filesDir, "albums/${album.id}").apply { mkdirs() }
+        val sourceDocs = tree.listFiles().filter { doc ->
+            val type = doc.type
+            doc.isFile && type != null && type.startsWith("image/")
+        }
+        val sourceNames = sourceDocs.mapNotNull { it.name }.toHashSet()
+        val canRemoveMissing = sourceDocs.isEmpty() || sourceNames.isNotEmpty()
+
+        var removed = 0
+        if (canRemoveMissing) {
+            for (photo in existingPhotos) {
+                val name = photo.displayName ?: continue
+                if (!sourceNames.contains(name)) {
+                    runCatching { File(photo.path).delete() }
+                    dao.deletePhoto(photo)
+                    existingNames.remove(name)
+                    removed++
+                }
+            }
+        }
+
         var nextPos = (dao.getPhotos(album.id).maxOfOrNull { it.position } ?: -1) + 1
         var added = 0
-        for (doc in tree.listFiles()) {
-            val type = doc.type
-            if (!doc.isFile || type == null || !type.startsWith("image/")) continue
+        for (doc in sourceDocs) {
             val docName = doc.name
             // Zaten içe aktarılmış (aynı isimli) resimleri atla.
             if (docName != null && existingNames.contains(docName)) continue
@@ -118,7 +137,7 @@ class Repository(private val context: Context) {
                 // tek bir resim kopyalanamazsa diğerlerine devam et
             }
         }
-        if (added > 0) refreshIfActive(album.id)
+        if (added > 0 || removed > 0) refreshIfActive(album.id)
         added
     }
 
